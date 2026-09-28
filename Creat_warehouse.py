@@ -11,12 +11,19 @@
      ชั้นวางนั้น" ก็ถือว่าหยิบของได้
    - ไม่ต้องหยิบเรียงลำดับ ขอแค่ครบทุกจุด
 
+ วิธีที่กลุ่มเลือกใช้ (งานกลุ่ม 3 คน คนละ 1 วิธี)
+   วิธีที่ 1  Held-Karp Dynamic Programming   -> exact, ใช้เป็นเฉลย/baseline
+   วิธีที่ 2  Genetic Algorithm (memetic)     -> metaheuristic แบบประชากร
+   วิธีที่ 3  Ant Colony Optimization (hybrid) -> metaheuristic แบบ swarm
+
  โครงสร้างไฟล์
    ส่วนที่ 1-6   : แผนที่โกดัง / สุ่มจุดหยิบ / วาดแผนที่  (ของเดิมจากโจทย์)
-   ส่วนที่ 7-9   : สร้างแบบจำลองกราฟ (BFS ระยะทางจริงในเขาวงกต)
-   ส่วนที่ 10    : ตัวถอดรหัส "ลำดับการหยิบ -> เส้นทางจริง" ด้วย DP
-   ส่วนที่ 11-15 : วิธี optimize 5 แบบ + ตัวตรวจคำตอบที่เหมาะที่สุดแบบ exact
-   ส่วนที่ 16-18 : รันเปรียบเทียบ / แสดงผล / วาดเส้นทาง / ทดลองขยาย n
+   ส่วนที่ 7-9   : สร้างแบบจำลองกราฟ (BFS) + ตัวถอดรหัส "ลำดับ -> เส้นทางจริง" (DP)
+   ส่วนที่ 10-11 : ส่วนประกอบร่วม (Nearest Neighbour / Local Search 2-opt+Or-opt)
+                   *ไม่นับเป็นวิธีหลัก* แต่ถูกเรียกใช้ภายใน GA และ ACO
+   ส่วนที่ 12-14 : 3 วิธีหลักของกลุ่ม (Held-Karp / GA / ACO)
+   ส่วนที่ 15-16 : free-pickup reduction + ตัวพิสูจน์ optimum (state-space BFS)
+   ส่วนที่ 17-21 : รันเปรียบเทียบ / แสดงผล / ทดลองขยาย n / ทดลองเจาะลึก ACO
 =============================================================================
 """
 
@@ -537,8 +544,10 @@ def collected_mask(problem, path):
 
 
 # =========================================================
-# 10) วิธีที่ 1 : Nearest Neighbour (Greedy Constructive Heuristic)
+# 10) ส่วนประกอบร่วม A : Nearest Neighbour (Greedy Constructive Heuristic)
 # ---------------------------------------------------------
+#  *** ไม่ใช่ 1 ใน 3 วิธีหลักของกลุ่ม *** แต่เป็น "ตัวสร้างคำตอบตั้งต้น" ที่
+#  GA เอาไปใช้ seed ประชากรรุ่นแรก (ส่วนที่ 13)
 #  หลักการ: อยู่ที่ไหนก็เดินไปหยิบจุดที่ "ใกล้ที่สุด" ที่ยังไม่ได้หยิบ
 #  ปรับใช้กับโจทย์: ระยะทางที่ใช้ตัดสินใจไม่ใช่ระยะเส้นตรง แต่เป็นระยะ BFS จริง
 #  ระหว่าง "กลุ่ม access cell" จึงไม่โดนกำแพงชั้นวางหลอก
@@ -563,8 +572,10 @@ def solve_nearest_neighbour(problem, first=None):
 
 
 # =========================================================
-# 11) วิธีที่ 2 : Local Search (2-opt + Or-opt)
+# 11) ส่วนประกอบร่วม B : Local Search (2-opt + Or-opt)
 # ---------------------------------------------------------
+#  *** ไม่ใช่ 1 ใน 3 วิธีหลักของกลุ่ม *** แต่เป็น "ขั้นตอนขัดคำตอบ" ที่ทั้ง GA
+#  และ ACO เรียกใช้ตอนท้าย (ทำให้ทั้งคู่เป็น hybrid / memetic algorithm)
 #  2-opt  : กลับด้านลำดับช่วง [i..j]  -> แก้เส้นทางที่ "ไขว้กัน"
 #  Or-opt : ย้ายชิ้นส่วนยาว 1-3 จุด ไปแทรกตำแหน่งอื่น (กลับด้านได้)
 #  ปรับใช้กับโจทย์: ปกติ 2-opt ของ TSP คำนวณ delta จากระยะ 4 เส้น แต่ที่นี่
@@ -646,7 +657,7 @@ def quick_or_opt(problem, order, window=6, max_passes=8):
 
 
 # =========================================================
-# 12) วิธีที่ 3 : Genetic Algorithm  (Topic 10.2)
+# 12) [วิธีหลักที่ 2] Genetic Algorithm  (Topic 10.2)
 # ---------------------------------------------------------
 #  การเข้ารหัส (encoding): โครโมโซม = permutation ของหมายเลขจุดหยิบ 0..n-1
 #      ไม่ต้องใส่ entrance/exit ในยีน เพราะถูกตรึงเป็นหัว/ท้ายเสมอ
@@ -761,24 +772,57 @@ def solve_genetic(problem, population_size=None, generations=None,
 
 
 # =========================================================
-# 13) วิธีที่ 4 : Ant Colony Optimization  (Topic 10.4)
+# 13) [วิธีหลักที่ 3] Ant Colony Optimization  (Topic 10.4)
 # ---------------------------------------------------------
-#  มดแต่ละตัวสร้างลำดับการหยิบทีละจุด โดยเลือกจุดถัดไปด้วยความน่าจะเป็น
-#        P(i->j) = [tau_ij ^ alpha] * [eta_ij ^ beta] / sum(...)
-#  โดย eta_ij = 1 / group_dist[i][j] (ยิ่งใกล้ยิ่งน่าเลือก)
-#  จบรอบ -> ระเหยฟีโรโมน tau *= (1-rho) -> โรยฟีโรโมน Q/ระยะทาง บนเส้นที่ใช้
-#  ปรับใช้กับโจทย์ (ส่วนที่ปรับปรุงจาก ACO มาตรฐาน)
-#    1) ระยะทางฮิวริสติก eta ใช้ระยะ BFS จริงระหว่างกลุ่ม access cell
-#       ไม่ใช่ระยะยุคลิด/Manhattan ตรง ๆ (สำคัญมาก เพราะมีชั้นวางขวาง)
-#    2) ใช้ elitist ant — โรยฟีโรโมนเพิ่มให้เส้นทางที่ดีที่สุดที่เคยเจอทุกรอบ
-#       เพื่อเร่งการลู่เข้า
-#    3) จำกัดฟีโรโมนไว้ในช่วง [tau_min, tau_max] แบบ Max-Min Ant System
-#       กันไม่ให้ลู่เข้าเร็วเกินจนติด local optimum
-#    4) เมื่อจบทุกรอบ นำลำดับที่ดีที่สุดไปขัดด้วย Local Search ส่วนที่ 11
+#  แนวคิดจากธรรมชาติ
+#    มดจริงเดินหาอาหารแบบสุ่ม แล้วทิ้ง "ฟีโรโมน" ไว้บนทางที่เดิน
+#    ทางที่สั้นกว่า -> มดเดินไป-กลับจบรอบเร็วกว่า -> ฟีโรโมนสะสมหนากว่า
+#    -> มดตัวถัดไปมีโอกาสเลือกทางนั้นมากขึ้น -> ฝูงทั้งฝูงค่อย ๆ ลู่เข้าทางที่สั้น
+#    ขณะเดียวกันฟีโรโมนก็ "ระเหย" ตลอดเวลา ทางที่ไม่มีใครใช้จึงถูกลืมไปเอง
+#
+#  สูตรความน่าจะเป็นที่มดตัวหนึ่งจะเลือกไปจุด j ต่อจากจุด i
+#        P(i->j) = [tau_ij ^ alpha] * [eta_ij ^ beta] / sum ของทุก j ที่ยังไม่ไป
+#    tau_ij = ฟีโรโมนบนเส้น i-j      (ความรู้ที่ฝูงสะสมมา / exploitation)
+#    eta_ij = 1 / group_dist[i][j]   (ความโลภระยะสั้น / greedy heuristic)
+#    alpha  = ให้น้ำหนักฟีโรโมนแค่ไหน,  beta = ให้น้ำหนักระยะทางแค่ไหน
+#
+#  จบ 1 รอบ (ทุกตัวเดินครบ)
+#    (1) ระเหย  tau *= (1 - rho)
+#    (2) โรยฟีโรโมน  tau += Q / ระยะทางของมดตัวนั้น  บนทุกเส้นที่มันใช้
+#    (3) elitist ant : โรยเพิ่มให้เส้นทางที่ดีที่สุดที่เคยเจอ
+#
+#  ปรับใช้กับโจทย์นี้อย่างไร (สิ่งที่ต่างจาก ACO ในตำรา)
+#    1) eta ใช้ "ระยะ BFS จริงในเขาวงกต" ระหว่างกลุ่ม access cell
+#       ไม่ใช่ระยะยุคลิด/Manhattan ตรง ๆ  (สำคัญที่สุด)
+#       เพราะสองจุดที่อยู่คนละฝั่งชั้นวางเดียวกัน ระยะตรงแค่ 2 ช่อง
+#       แต่ต้องเดินอ้อมหัวแถวจริง ๆ ถึง 20 ก้าว ถ้าใช้ระยะตรงมดจะถูกหลอก
+#    2) มดตัดสินใจแค่ "ลำดับการหยิบ" ไม่ต้องเลือกว่าจะไปยืนช่องไหน
+#       เพราะยกงานนั้นให้ DP ส่วนที่ 9 ทำแทน (มันเลือกได้ดีที่สุดเสมอ)
+#       -> พื้นที่ค้นหาของมดเล็กลง 4^n เท่า และคำตอบทุกตัวที่มดสร้างขึ้น
+#          ก็ถูก "ปรับให้ดีที่สุดของลำดับนั้น" ให้อัตโนมัติ
+#    3) elitist ant (น้ำหนัก 2 เท่า) เร่งการลู่เข้าภายในงบรอบที่จำกัด
+#    4) hybrid : ลำดับที่ดีที่สุดตอนจบถูกส่งไปขัดด้วย 2-opt/Or-opt (ส่วนที่ 11)
+#       แล้วตามด้วย free-pickup reduction (ส่วนที่ 15)
+#
+#  สิ่งที่ "ลองแล้วตัดทิ้ง" : Max-Min Ant System (จำกัด tau ในช่วง [min,max])
+#    ตำราบอกว่าช่วยกัน premature convergence แต่พอวัดจริงกับโจทย์นี้
+#    (4 instance x 5 seed และลองยืดรอบเป็น 5 เท่าแล้ว) กลับ "แย่ลงทุกกรณี"
+#    เหตุผล: การตัดยอด tau ทำให้ความต่างระหว่างเส้นดี/เส้นแย่ถูกบีบให้แบน
+#    ฝูงจึงเรียนรู้ช้าลง ในขณะที่งบรอบของเรามีแค่ 3n รอบ ยังไม่ทันติด local optimum
+#    จึงตั้งค่า default use_mmas=False แต่ยังเก็บ flag ไว้ให้ทดลองซ้ำได้ (ส่วนที่ 20)
 # =========================================================
 def solve_ant_colony(problem, n_ants=None, iterations=None,
                      alpha=1.0, beta=3.0, rho=0.1, Q=100.0,
-                     elitist=2.0, seed=1, refine=True):
+                     elitist=2.0, seed=1, refine=True,
+                     use_mmas=False, history=None):
+    """
+    พารามิเตอร์ที่เปิด/ปิดได้ (ใช้ทำการทดลอง ablation ในส่วนที่ 21)
+        elitist = 0     -> ปิด elitist ant
+        refine = False  -> ปิด local search ตอนจบ
+        use_mmas = True -> เปิด Max-Min clamp (ค่าเริ่มต้นปิด เพราะวัดแล้วแย่ลง)
+        history          -> ส่ง list เข้ามาเพื่อเก็บ best-so-far ของทุกรอบ
+                            (ใช้วาดกราฟการลู่เข้า convergence curve)
+    """
     n = problem.n
     if n <= 2:
         return list(range(n)), order_cost(problem, list(range(n)))
@@ -821,6 +865,9 @@ def solve_ant_colony(problem, n_ants=None, iterations=None,
             if cost < best_cost:
                 best_order, best_cost = order[:], cost
 
+        if history is not None:
+            history.append(best_cost)
+
         # --- ระเหย ---
         for i in range(k):
             row = tau[i]
@@ -836,20 +883,22 @@ def solve_ant_colony(problem, n_ants=None, iterations=None,
                 tau[b][a] += add
 
         # --- elitist ant: เน้นเส้นทางที่ดีที่สุดที่เคยเจอ ---
-        nodes = [START] + [p + 1 for p in best_order] + [END]
-        add = elitist * Q / best_cost
-        for a, b in zip(nodes, nodes[1:]):
-            tau[a][b] += add
-            tau[b][a] += add
+        if elitist > 0:
+            nodes = [START] + [p + 1 for p in best_order] + [END]
+            add = elitist * Q / best_cost
+            for a, b in zip(nodes, nodes[1:]):
+                tau[a][b] += add
+                tau[b][a] += add
 
         # --- Max-Min: จำกัดช่วงฟีโรโมน ---
-        for i in range(k):
-            row = tau[i]
-            for j in range(k):
-                if row[j] > tau_max:
-                    row[j] = tau_max
-                elif row[j] < tau_min:
-                    row[j] = tau_min
+        if use_mmas:
+            for i in range(k):
+                row = tau[i]
+                for j in range(k):
+                    if row[j] > tau_max:
+                        row[j] = tau_max
+                    elif row[j] < tau_min:
+                        row[j] = tau_min
 
     if refine:
         best_order, best_cost = local_search(problem, best_order)
@@ -857,7 +906,7 @@ def solve_ant_colony(problem, n_ants=None, iterations=None,
 
 
 # =========================================================
-# 14) วิธีที่ 5 : Held-Karp Dynamic Programming  (exact, n เล็ก)
+# 14) [วิธีหลักที่ 1] Held-Karp Dynamic Programming  (exact, n เล็ก)
 # ---------------------------------------------------------
 #  DP บน bitmask แบบ TSP มาตรฐาน แต่ขยาย state ให้รวม "ช่องที่ยืนหยิบ" ด้วย
 #      f(mask, i, c) = ระยะทางน้อยสุดที่เริ่มจาก entrance หยิบของครบตาม mask
@@ -1078,50 +1127,227 @@ def print_result_detail(problem, res):
 
 # =========================================================
 # 18) การทดลองขยายจำนวนจุด n = 10, 20, 30, 50  (ข้อ 7.2.4)
+#     เปรียบเทียบเฉพาะ 3 วิธีหลักของกลุ่ม
 # =========================================================
 def scaling_experiment(warehouse, entrance, exit_point,
-                       sizes=(10, 20, 30, 50), seed=20):
+                       sizes=(10, 20, 30, 50), seed=20, seeds=(1, 2, 3)):
+    """
+    GA และ ACO มีการสุ่มอยู่ข้างใน จึงรันหลาย seed แล้วรายงานทั้ง "ดีสุด" และ
+    "เฉลี่ย" การรายงานแค่ครั้งเดียวอาจได้ seed ที่ฟลุ๊กแล้วสรุปผิด
+    ส่วน Held-Karp เป็น deterministic รันครั้งเดียวพอ
+    """
     print()
     print("=" * 78)
     print(" [7.2.4] ผลของการเพิ่มจำนวนจุดหยิบสินค้า n = 10, 20, 30, 50")
+    print(f"          (GA/ACO รัน {len(seeds)} seed แล้วรายงาน ดีสุด / เฉลี่ย)")
     print("=" * 78)
-    header = (f"{'n':>4} | {'NN':^17} | {'NN+LocalSearch':^17} | "
-              f"{'GA':^17} | {'ACO':^17} | {'Held-Karp':^17}")
-    print(header)
-    print("-" * len(header))
+    print(f"{'n':>4} | {'Held-Karp (exact)':^19} | "
+          f"{'Genetic Algorithm':^25} | {'Ant Colony Opt.':^25}")
+    print(f"{'':>4} | {'ก้าว':>8}{'เวลา':>11} | "
+          f"{'ดีสุด':>7}{'เฉลี่ย':>9}{'เวลา':>9} | "
+          f"{'ดีสุด':>7}{'เฉลี่ย':>9}{'เวลา':>9}")
+    print("-" * 82)
 
     for n in sizes:
         pts = generate_pickup_points(warehouse, n, seed=seed)
         problem = WarehouseProblem(warehouse, entrance, exit_point, pts)
-
         nn_order = solve_nearest_neighbour(problem)
-        results = [
-            run_method("NN", lambda p: (solve_nearest_neighbour(p), 0), problem),
-            run_method("NN+LS",
-                       lambda p: local_search(p, solve_nearest_neighbour(p)),
-                       problem),
-            run_method("GA",
-                       lambda p: solve_genetic(p, seed=7, seed_order=nn_order),
-                       problem),
-            run_method("ACO", lambda p: solve_ant_colony(p, seed=7), problem),
-            run_method("Held-Karp", solve_held_karp, problem),
-        ]
 
-        cells = []
-        for r in results:
-            if r is None or r["cost"] == INF:
-                cells.append(f"{'n/a':^17}")
-            else:
-                cells.append(f"{r['steps']:>7} ({r['time']:6.2f}s)")
+        # ---- Held-Karp (deterministic) ----
+        hk = run_method("Held-Karp", solve_held_karp, problem)
+        if hk is None or hk["cost"] == INF:
+            hk_cell = f"{'n/a (2^n ระเบิด)':^19}"
+        else:
+            hk_cell = f"{hk['steps']:>8}{hk['time']:>10.2f}s"
+
+        # ---- metaheuristic (หลาย seed) ----
+        cells = [hk_cell]
+        for maker in (lambda sd: (lambda p: solve_genetic(p, seed=sd,
+                                                          seed_order=nn_order)),
+                      lambda sd: (lambda p: solve_ant_colony(p, seed=sd))):
+            steps, times = [], []
+            for sd in seeds:
+                r = run_method("x", maker(sd), problem)
+                steps.append(r["steps"])
+                times.append(r["time"])
+            cells.append(f"{min(steps):>7}{sum(steps) / len(steps):>9.1f}"
+                         f"{sum(times) / len(times):>8.2f}s")
         print(f"{n:>4} | " + " | ".join(cells))
 
     print()
-    print(" หมายเหตุ  n/a = วิธี exact ใช้ไม่ได้เพราะ state space โตแบบ 2^n")
-    print(" ค่าในวงเล็บคือเวลาประมวลผล (รวมขั้นตอน free-pickup reduction)")
+    print(" หมายเหตุ  n/a = Held-Karp ใช้ไม่ได้เพราะ state space โตแบบ O(2^n · n^2)")
+    print(" เวลาที่รายงานรวมขั้นตอน free-pickup reduction แล้ว")
 
 
 # =========================================================
-# 19) กำหนดทางเข้า ทางออก และจำนวนจุดหยิบสินค้า
+# 19) การทดลองความเสถียร (stability) ของ metaheuristic
+# ---------------------------------------------------------
+#  GA และ ACO มี "การสุ่ม" อยู่ข้างใน รันคนละ seed ได้คำตอบไม่เท่ากัน
+#  ต่างจาก Held-Karp ที่ deterministic (รันกี่ครั้งก็ได้ค่าเดิมเป๊ะ)
+#  จึงต้องรายงานค่าเฉลี่ย/ดีสุด/แย่สุด ไม่ใช่รันครั้งเดียวแล้วสรุป
+# =========================================================
+def stability_experiment(warehouse, entrance, exit_point,
+                         n=30, seeds=(1, 2, 3, 4, 5), point_seed=20):
+    print()
+    print("=" * 78)
+    print(f" [เพิ่มเติม] ความเสถียรของ GA vs ACO  (n = {n}, รัน {len(seeds)} seed)")
+    print("=" * 78)
+
+    pts = generate_pickup_points(warehouse, n, seed=point_seed)
+    problem = WarehouseProblem(warehouse, entrance, exit_point, pts)
+    nn_order = solve_nearest_neighbour(problem)
+
+    runners = [
+        ("Genetic Algorithm",
+         lambda sd: solve_genetic(problem, seed=sd, seed_order=nn_order)),
+        ("Ant Colony Opt.",
+         lambda sd: solve_ant_colony(problem, seed=sd)),
+    ]
+
+    print(f"{'วิธี':<20}" + "".join(f"{'s' + str(sd):>6}" for sd in seeds)
+          + f"{'ดีสุด':>8}{'แย่สุด':>8}{'เฉลี่ย':>9}{'เวลาเฉลี่ย':>12}")
+    print("-" * 78)
+    for name, fn in runners:
+        steps, times = [], []
+        for sd in seeds:
+            t0 = time.perf_counter()
+            order, _ = fn(sd)
+            order, cost, path, stops = free_pickup_reduction(problem, order)
+            times.append(time.perf_counter() - t0)
+            steps.append(len(path) - 1)
+        print(f"{name:<20}" + "".join(f"{v:>6}" for v in steps)
+              + f"{min(steps):>8}{max(steps):>8}"
+              + f"{sum(steps) / len(steps):>9.1f}"
+              + f"{sum(times) / len(times):>11.2f}s")
+    print()
+    print(" ยิ่งช่วง ดีสุด-แย่สุด แคบ = วิธีนั้นยิ่งเชื่อถือได้เมื่อรันครั้งเดียว")
+
+
+# =========================================================
+# 20) การทดลองเจาะลึก ACO (1) : Ablation — ข้อปรับปรุงแต่ละข้อช่วยจริงไหม
+# ---------------------------------------------------------
+#  เปิดข้อปรับปรุงเพิ่มทีละข้อแล้วดูว่าคำตอบดีขึ้นเท่าไหร่
+#  เป็นการ "พิสูจน์" ว่าที่ปรับไปนั้นมีผลจริง ไม่ได้ใส่มาเฉย ๆ
+# =========================================================
+def aco_ablation_experiment(warehouse, entrance, exit_point,
+                            n=50, seeds=(1, 2, 3, 4, 5), point_seed=20):
+    print()
+    print("=" * 78)
+    print(f" [ACO เจาะลึก 1] Ablation : ข้อปรับปรุงแต่ละข้อช่วยเท่าไหร่ (n = {n})")
+    print("=" * 78)
+
+    pts = generate_pickup_points(warehouse, n, seed=point_seed)
+    problem = WarehouseProblem(warehouse, entrance, exit_point, pts)
+
+    variants = [
+        ("A. ACO ตามตำรา (ไม่ปรับอะไรเลย)",
+         dict(elitist=0.0, use_mmas=False, refine=False)),
+        ("B. A + elitist ant",
+         dict(elitist=2.0, use_mmas=False, refine=False)),
+        ("C. B + Local Search   <- ที่ใช้จริง",
+         dict(elitist=2.0, use_mmas=False, refine=True)),
+        ("D. C + Max-Min clamp  (ลองแล้วแย่ลง)",
+         dict(elitist=2.0, use_mmas=True, refine=True)),
+    ]
+
+    print(f"{'รูปแบบ':<40}{'ก้าวเฉลี่ย':>12}{'ดีสุด':>8}{'แย่สุด':>8}{'เวลาเฉลี่ย':>13}")
+    print("-" * 80)
+    for name, kw in variants:
+        steps, times = [], []
+        for sd in seeds:
+            t0 = time.perf_counter()
+            order, _ = solve_ant_colony(problem, seed=sd, **kw)
+            order, cost, path, stops = free_pickup_reduction(problem, order)
+            times.append(time.perf_counter() - t0)
+            steps.append(len(path) - 1)
+        print(f"{name:<40}{sum(steps) / len(steps):>12.1f}"
+              f"{min(steps):>8}{max(steps):>8}"
+              f"{sum(times) / len(times):>12.2f}s")
+    print()
+    print(" อ่านตาราง : 'ก้าวเฉลี่ย' ยิ่งน้อยยิ่งดี  (เฉลี่ยจาก %d seed)" % len(seeds))
+    print(" A -> C คือเปิดข้อปรับปรุงเพิ่มทีละข้อแบบสะสม")
+    print(" D คือหลักฐานว่าทำไมถึง 'ไม่' ใช้ Max-Min ในงานนี้")
+
+
+# =========================================================
+# 21) การทดลองเจาะลึก ACO (2) : ความไวต่อพารามิเตอร์ alpha / beta / rho
+# ---------------------------------------------------------
+#  alpha = น้ำหนักของ "ฟีโรโมน" (ประสบการณ์ที่ฝูงสะสมมา)
+#  beta  = น้ำหนักของ "ระยะทาง" (ความโลภระยะสั้น)
+#  rho   = อัตราการระเหย (ยิ่งมาก ยิ่งลืมเร็ว ยิ่งสำรวจเยอะ)
+# =========================================================
+def aco_parameter_experiment(warehouse, entrance, exit_point,
+                             n=30, seeds=(1, 2, 3), point_seed=20):
+    print()
+    print("=" * 78)
+    print(f" [ACO เจาะลึก 2] ความไวต่อพารามิเตอร์ (n = {n}, ปิด local search)")
+    print("=" * 78)
+
+    pts = generate_pickup_points(warehouse, n, seed=point_seed)
+    problem = WarehouseProblem(warehouse, entrance, exit_point, pts)
+
+    def avg_steps(**kw):
+        out = []
+        for sd in seeds:
+            order, _ = solve_ant_colony(problem, seed=sd, refine=False, **kw)
+            order, cost, path, stops = free_pickup_reduction(problem, order)
+            out.append(len(path) - 1)
+        return sum(out) / len(out)
+
+    print("\n  (2.1) เปลี่ยน beta   (alpha = 1, rho = 0.1)")
+    print(f"      {'beta':>6}{'ก้าวเฉลี่ย':>16}")
+    for b in (0.0, 1.0, 2.0, 3.0, 5.0, 8.0):
+        print(f"      {b:>6.1f}{avg_steps(beta=b):>14.1f}")
+
+    print("\n  (2.2) เปลี่ยน alpha  (beta = 3, rho = 0.1)")
+    print(f"      {'alpha':>6}{'ก้าวเฉลี่ย':>16}")
+    for a in (0.0, 0.5, 1.0, 2.0, 4.0):
+        print(f"      {a:>6.1f}{avg_steps(alpha=a):>14.1f}")
+
+    print("\n  (2.3) เปลี่ยน rho    (alpha = 1, beta = 3)")
+    print(f"      {'rho':>6}{'ก้าวเฉลี่ย':>16}")
+    for r in (0.02, 0.05, 0.1, 0.3, 0.6):
+        print(f"      {r:>6.2f}{avg_steps(rho=r):>14.1f}")
+
+    print()
+    print(" beta = 0  -> มดไม่สนระยะทางเลย เดินมั่วแล้วค่อยเรียนจากฟีโรโมนอย่างเดียว")
+    print(" alpha = 0 -> ไม่มีการเรียนรู้ เหลือแค่ greedy แบบสุ่ม (เท่ากับไม่ได้ใช้ ACO)")
+
+
+# =========================================================
+# 22) กราฟการลู่เข้าของ ACO (convergence curve)
+# =========================================================
+def plot_aco_convergence(warehouse, entrance, exit_point,
+                         n=50, seed=1, point_seed=20,
+                         filename="aco_convergence.png"):
+    pts = generate_pickup_points(warehouse, n, seed=point_seed)
+    problem = WarehouseProblem(warehouse, entrance, exit_point, pts)
+
+    curves = [
+        ("A: textbook ACO (no elitist)",
+         dict(elitist=0.0, use_mmas=False), "tab:gray"),
+        ("B: + elitist ant  (used)",
+         dict(elitist=2.0, use_mmas=False), "tab:blue"),
+        ("D: + Max-Min clamp  (rejected)",
+         dict(elitist=2.0, use_mmas=True), "tab:red"),
+    ]
+
+    plt.figure(figsize=(9, 5))
+    for label, kw, color in curves:
+        hist = []
+        solve_ant_colony(problem, seed=seed, refine=False, history=hist, **kw)
+        plt.plot(range(1, len(hist) + 1), hist, label=label, color=color, lw=2)
+
+    plt.xlabel("Iteration")
+    plt.ylabel("Best-so-far tour length (steps)")
+    plt.title(f"ACO convergence curve (n = {n}, seed = {seed})")
+    plt.grid(alpha=0.3)
+    plt.legend()
+    _finish(filename)
+
+
+# =========================================================
+# 23) กำหนดทางเข้า ทางออก และจำนวนจุดหยิบสินค้า
 # =========================================================
 if __name__ == "__main__":
     # พิกัดอยู่ในรูปแบบ (row, column)
@@ -1144,7 +1370,7 @@ if __name__ == "__main__":
     )
 
     # -----------------------------------------------------
-    # 19.1 แสดงข้อมูลพิกัด
+    # 23.1 แสดงข้อมูลพิกัด
     # -----------------------------------------------------
     print("=" * 78)
     print(" โจทย์ : หาเส้นทางหยิบสินค้าที่สั้นที่สุดในโกดัง")
@@ -1159,7 +1385,7 @@ if __name__ == "__main__":
         print(f"  Pickup {index}: {point}")
 
     # -----------------------------------------------------
-    # 19.2 สร้างแบบจำลองกราฟ
+    # 23.2 สร้างแบบจำลองกราฟ
     # -----------------------------------------------------
     t0 = time.perf_counter()
     problem = WarehouseProblem(warehouse, entrance, exit_point, pickup_points)
@@ -1181,21 +1407,18 @@ if __name__ == "__main__":
           f"({'ตรงกัน' if d_bfs == d_astar else 'ไม่ตรงกัน'})")
 
     # -----------------------------------------------------
-    # 19.3 รันทุกวิธีแล้วเปรียบเทียบ (ข้อ 6, 7.2.2, 7.2.3)
+    # 23.3 รัน 3 วิธีหลักแล้วเปรียบเทียบ (ข้อ 6, 7.2.2, 7.2.3)
     # -----------------------------------------------------
     nn_seed_order = solve_nearest_neighbour(problem)
 
+    # 3 วิธีหลักของกลุ่ม (สมาชิกคนละ 1 วิธี)
     methods = [
-        ("1. Nearest Neighbour (greedy)",
-         lambda p: (solve_nearest_neighbour(p), 0)),
-        ("2. NN + Local Search (2-opt/Or-opt)",
-         lambda p: local_search(p, solve_nearest_neighbour(p))),
-        ("3. Genetic Algorithm (memetic)",
-         lambda p: solve_genetic(p, seed=7, seed_order=nn_seed_order)),
-        ("4. Ant Colony Optimization",
-         lambda p: solve_ant_colony(p, seed=7)),
-        ("5. Held-Karp DP (exact ordering)",
+        ("1. Held-Karp DP (exact)",
          solve_held_karp),
+        ("2. Genetic Algorithm (memetic)",
+         lambda p: solve_genetic(p, seed=7, seed_order=nn_seed_order)),
+        ("3. Ant Colony Optimization (hybrid)",
+         lambda p: solve_ant_colony(p, seed=7)),
     ]
 
     results = []
@@ -1234,7 +1457,7 @@ if __name__ == "__main__":
     print(" 'gap' = ห่างจากคำตอบที่ดีที่สุดกี่เปอร์เซ็นต์")
 
     # -----------------------------------------------------
-    # 19.4 แสดงรายละเอียดคำตอบที่ดีที่สุด (ข้อ 5.1 - 5.3)
+    # 23.4 แสดงรายละเอียดคำตอบที่ดีที่สุด (ข้อ 5.1 - 5.3)
     # -----------------------------------------------------
     best = min(results, key=lambda r: (r["steps"], r["time"]))
     print_result_detail(problem, best)
@@ -1244,7 +1467,7 @@ if __name__ == "__main__":
               f"{'ได้คำตอบที่ดีที่สุด (optimal)' if best['steps'] == opt_steps else 'ยังไม่ optimal'}")
 
     # -----------------------------------------------------
-    # 19.5 วาดแผนที่และเส้นทาง
+    # 23.5 วาดแผนที่และเส้นทาง
     # -----------------------------------------------------
     plot_warehouse(
         warehouse=warehouse,
@@ -1267,7 +1490,15 @@ if __name__ == "__main__":
     )
 
     # -----------------------------------------------------
-    # 19.6 การทดลองขยายจำนวนจุด (ข้อ 7.2.4)
+    # 23.6 การทดลองขยายจำนวนจุด (ข้อ 7.2.4)
     # -----------------------------------------------------
     scaling_experiment(warehouse, entrance, exit_point,
                        sizes=(10, 20, 30, 50), seed=20)
+
+    # -----------------------------------------------------
+    # 23.7 การทดลองเพิ่มเติม (ใช้ประกอบการนำเสนอ)
+    # -----------------------------------------------------
+    stability_experiment(warehouse, entrance, exit_point, n=30)
+    aco_ablation_experiment(warehouse, entrance, exit_point, n=50)
+    aco_parameter_experiment(warehouse, entrance, exit_point, n=30)
+    plot_aco_convergence(warehouse, entrance, exit_point, n=50)
