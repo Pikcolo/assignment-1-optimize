@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Held–Karp ทีละก้าว</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#F2F4F3; --surface:#FFFFFF; --sunk:#E8ECEB; --ink:#16202A; --muted:#56646E; --line:#D3DBDD;
+  --shelf:#2B3540; --aisle:#E4ECEF; --teal:#0E7C74; --teal-soft:#D5ECE9; --amber:#C98C00; --amber-soft:#FBEFC8;
+  --pick:#F2C230; --pick-ink:#2A2100; --ent:#1F8A4C; --exit:#C2412D;
+  --display:"Bai Jamjuree","IBM Plex Sans Thai",system-ui,sans-serif;
+  --body:"IBM Plex Sans Thai","Leelawadee UI",Tahoma,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.65;padding-inline:20px;padding-block:28px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{font-family:var(--display);line-height:1.25;text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,4.4vw,42px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:clamp(21px,2.6vw,27px);font-weight:600}
+h3{font-size:17px;font-weight:600}
+p{margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);font-weight:600}
+header{display:flex;flex-direction:column;gap:12px;max-width:760px}
+header .lead{color:var(--muted);font-size:16px;max-width:65ch}
+.recipe{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.recipe span{font-family:var(--mono);font-size:12.5px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 9px}
+.recipe b{color:var(--teal)}
+
+section.lesson{display:flex;flex-direction:column;gap:18px}
+.lesson-head{display:flex;flex-direction:column;gap:6px;max-width:760px}
+.lesson-head p{color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:900px){.stage{position:static}}
+.stage svg{width:100%;height:auto;display:block}
+.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.card.explain{border-left:4px solid var(--teal)}
+.step-tag{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.explain p{max-width:65ch}
+.formula{font-family:var(--mono);font-size:13.5px;background:var(--sunk);border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:pre;line-height:1.7}
+.cand{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;font-family:var(--mono);font-size:13.5px;font-variant-numeric:tabular-nums;align-items:center}
+.cand .row{display:contents}
+.cand .row > *{padding:6px 8px;border-radius:6px}
+.cand .row.win > *{background:var(--teal-soft)}
+.cand .row.lose > *{color:var(--muted)}
+.cand .tag{font-size:11.5px;letter-spacing:.04em}
+.win .tag{color:var(--teal);font-weight:600}
+
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+button{font-family:var(--body);font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer;line-height:1.2}
+button:hover{border-color:var(--teal)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+button.primary{background:var(--teal);border-color:var(--teal);color:var(--surface);font-weight:600}
+button:disabled{opacity:.45;cursor:default}
+.controls input[type=range]{flex:1 1 160px;accent-color:var(--teal);min-width:0}
+.controls .count{font-family:var(--mono);font-size:12.5px;color:var(--muted);min-width:72px;text-align:right}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:0;border-top:3px solid var(--teal);vertical-align:middle;margin-right:6px}
+.legend i.dash{border-top:2px dashed var(--amber)}
+.legend i.box{width:11px;height:11px;border:none;background:var(--pick);border-radius:2px}
+.legend i.dot{width:11px;height:11px;border:none;background:var(--teal);border-radius:50%}
+
+.tablewrap{position:relative;overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:var(--body);font-weight:600;font-size:12px;color:var(--muted);background:var(--sunk);position:sticky;top:0}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr.pending td{color:transparent}
+tr.pending td:first-child{color:var(--muted)}
+tr.now td{background:var(--teal-soft)}
+tr.read td{background:var(--amber-soft)}
+tr.layer td{background:var(--sunk);font-family:var(--body);font-size:12px;color:var(--muted);font-weight:600}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--pick);border-color:var(--pick);color:var(--pick-ink);font-weight:600}
+.bits{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch}
+.bit{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:52px;font-size:11.5px;color:var(--muted)}
+.bit b{font-family:var(--mono);font-size:16px;color:var(--muted)}
+.bit.on{background:var(--amber-soft);border-color:var(--amber);color:var(--ink)}
+.bit.on b{color:var(--amber)}
+.bit.cur{outline:2px solid var(--teal);outline-offset:1px}
+.layers{display:flex;flex-direction:column;gap:6px}
+.layer-row{display:grid;grid-template-columns:70px 1fr 64px;gap:10px;align-items:center;font-size:12.5px}
+.bar{height:8px;background:var(--sunk);border-radius:4px;overflow:hidden}
+.bar > span{display:block;height:100%;background:var(--teal)}
+.layer-row .mono{text-align:right;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.stat .k{font-size:12px;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat.good .v{color:var(--teal)}
+.stat.bad .v{color:var(--exit)}
+.note{font-size:13px;color:var(--muted)}
+.srtbot{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.srtbot div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.srtbot b{font-family:var(--mono);color:var(--teal);display:block;font-size:12px;letter-spacing:.05em}
+svg text{font-family:"IBM Plex Mono","IBM Plex Sans Thai",ui-monospace,monospace}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">241-405 Optimization · Topic 09.4 · Exact method</span>
+    <h1>Held–Karp ทีละก้าว</h1>
+    <p class="lead">Held–Karp ไม่ได้ลองทุกเส้นทาง แต่จำคำตอบของปัญหาย่อยไว้ในตาราง
+      ปัญหาย่อยคือ "เดินผ่านเซตนี้มาครบแล้ว ตอนนี้ยืนอยู่ที่ไหน" กด <b>ถัดไป</b> เพื่อดูตารางถูกเติมทีละช่อง</p>
+    <div class="recipe">
+      <span><b>state</b> (เซตที่ผ่านแล้ว, จุดที่ยืน)</span>
+      <span><b>สมการ</b> Cost(S,j) = min<sub>i</sub> Cost(S−{j}, i) + cost(i,j)</span>
+      <span><b>ลำดับ</b> เซตเล็ก → เซตใหญ่</span>
+    </div>
+  </header>
+
+  <!-- ===================== บทที่ 1 ===================== -->
+  <section class="lesson" id="lesson1">
+    <div class="lesson-head">
+      <span class="eyebrow">บทที่ 1</span>
+      <h2>4 เมืองจากสไลด์ : A, B, C, D</h2>
+      <p>เริ่มและจบที่ A ตัวเลขบนเส้นคือระยะทาง ดูว่าตารางด้านขวาถูกเติมจากเซตขนาด 1 ไป 3 อย่างไร และแต่ละช่องใช้ช่องไหนที่คำนวณไว้ก่อนแล้ว</p>
+    </div>
+    <div class="grid">
+      <div class="stage">
+        <svg id="g1" viewBox="0 0 360 300" role="img" aria-label="กราฟ 4 เมือง"></svg>
+        <div class="legend">
+          <span><i></i>เส้นทางที่ดีที่สุดของ state นี้</span>
+          <span><i class="dash"></i>ทางเลือกที่แพ้</span>
+          <span><i class="dot"></i>เมืองใน S (ผ่านแล้ว)</span>
+        </div>
+        <div class="controls" id="c1"></div>
+      </div>
+      <div class="panel">
+        <div class="card explain" id="e1"></div>
+        <div class="card">
+          <h3>ตาราง DP</h3>
+          <p class="note">สีเขียว = ช่องที่กำลังเขียน · สีเหลือง = ช่องเก่าที่ถูกอ่านมาใช้ ไม่ต้องคำนวณใหม่</p>
+          <div class="tablewrap"><table id="t1"></table></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== บทที่ 2 ===================== -->
+  <section class="lesson" id="lesson2">
+    <div class="lesson-head">
+      <span class="eyebrow">บทที่ 2</span>
+      <h2>ใช้กับโกดัง 18 × 20</h2>
+      <p>เมือง 1 เมืองกลายเป็นจุดหยิบ 1 จุด ซึ่ง <b>ยืนหยิบได้หลายช่อง</b> (วงกลมรอบชั้นวาง) state จึงต้องจำช่องที่ยืนด้วย
+        กลายเป็น <span class="mono">f(mask, i, c)</span> เลือกจุดหยิบด้านล่าง แล้วกดถัดไปเพื่อดูทีละ state</p>
+    </div>
+    <div class="card">
+      <h3>เลือกจุดหยิบ (จุดจากโจทย์ n = 10, seed = 20)</h3>
+      <div class="chips" id="chips"></div>
+      <p class="note" id="chipnote"></p>
+    </div>
+    <div class="grid">
+      <div class="stage">
+        <svg id="g2" viewBox="0 0 506 476" role="img" aria-label="แผนที่โกดัง"></svg>
+        <div class="legend">
+          <span><i></i>เส้นทางที่ดีที่สุด</span>
+          <span><i class="dash"></i>เส้นทางของช่องยืนอื่น</span>
+          <span><i class="box"></i>จุดหยิบ</span>
+          <span><i class="dot"></i>ช่องยืนที่ชนะ</span>
+        </div>
+        <div class="controls" id="c2"></div>
+      </div>
+      <div class="panel">
+        <div class="card explain" id="e2"></div>
+        <div class="card" id="bitcard">
+          <h3>mask : หยิบจุดไหนแล้วบ้าง</h3>
+          <div class="bits" id="bits"></div>
+          <p class="note mono" id="maskline"></p>
+        </div>
+        <div class="card" id="ccard">
+          <h3>ค่าของแต่ละช่องยืน c</h3>
+          <div class="tablewrap"><table id="t2"></table></div>
+        </div>
+        <div class="card">
+          <h3>ความคืบหน้า แยกตามจำนวนจุดที่หยิบแล้ว</h3>
+          <div class="layers" id="layers"></div>
+        </div>
+        <div class="card">
+          <h3>สรุปผล</h3>
+          <div class="stats" id="stats"></div>
+          <p class="note" id="statnote"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lesson">
+    <div class="lesson-head">
+      <span class="eyebrow">ทบทวน</span>
+      <h2>สิ่งที่เปลี่ยนเมื่อย้ายจากสไลด์มาโกดัง</h2>
+    </div>
+    <div class="srtbot">
+      <div><b>STATE</b>(S, j) → (mask, i, c) เพิ่มช่องที่ยืน c เพราะระยะไปจุดถัดไปขึ้นกับว่ายืนฝั่งไหนของชั้นวาง</div>
+      <div><b>SET</b>ใช้ bitmask บิตที่ k = 1 แปลว่าหยิบจุด k แล้ว เช็กได้ด้วย <span class="mono">mask &gt;&gt; k &amp; 1</span></div>
+      <div><b>BASE</b>f({i}, i, c) = ระยะ BFS จาก entrance ไปช่อง c</div>
+      <div><b>RELATION</b>f(mask,i,c) = min<sub>j,c′</sub> f(mask−i, j, c′) + d(c′, c)</div>
+      <div><b>ANSWER</b>min f(ครบ, i, c) + d(c, exit) จบที่ทางออก ไม่กลับจุดเริ่ม</div>
+      <div><b>TIME</b>O(2ⁿ · n² · A²) โดย A ≤ 4 ใช้ได้ถึง n ≈ 12 ใน Python</div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent,text){const e=document.createElementNS(NS,tag);for(const k in attrs){if(k==="fill"||k==="stroke")e.style.setProperty(k,attrs[k]);else e.setAttribute(k,attrs[k]);}if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e;}
+function h(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+const popcount=m=>{let c=0;while(m){c+=m&1;m>>=1;}return c;};
+const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- ตัวควบคุมทีละขั้น ---------- */
+function makeStepper(root,getCount,render,speed){
+  root.innerHTML="";
+  const prev=h("button",null,"◀ ก่อนหน้า"), next=h("button","primary","ถัดไป ▶"), play=h("button",null,"เล่นอัตโนมัติ");
+  const range=document.createElement("input"); range.type="range"; range.min=0; range.id=root.id+"-range"; range.setAttribute("aria-label","เลือกขั้น");
+  const count=h("span","count");
+  root.append(prev,next,play,range,count);
+  let idx=0,timer=null;
+  function stop(){if(timer){clearInterval(timer);timer=null;play.textContent="เล่นอัตโนมัติ";}}
+  function go(i){const n=getCount();idx=Math.max(0,Math.min(n-1,i));range.max=n-1;range.value=idx;count.textContent=(idx+1)+" / "+n;prev.disabled=idx===0;next.disabled=idx===n-1;render(idx);}
+  prev.onclick=()=>{stop();go(idx-1);};
+  next.onclick=()=>{stop();go(idx+1);};
+  range.oninput=()=>{stop();go(+range.value);};
+  play.onclick=()=>{if(timer){stop();return;}if(idx>=getCount()-1)go(0);play.textContent="หยุด";timer=setInterval(()=>{if(idx>=getCount()-1){stop();return;}go(idx+1);},typeof speed==="function"?speed():speed);};
+  return {go,reset(){stop();go(0);},get idx(){return idx;}};
+}
+
+/* =========================================================
+   บทที่ 1 : 4 เมือง
+   ========================================================= */
+const N1=["A","B","C","D"];
+const W1=[[0,10,15,20],[10,0,35,25],[15,35,0,30],[20,25,30,0]];
+const POS=[[70,58],[290,58],[70,242],[290,242]];
+const setName=m=>"{"+N1.filter((_,k)=>m>>k&1).join(",")+"}";
+const dp1={}; const key=(m,j)=>m*4+j;
+const steps1=[]; const fillOrder=[];
+steps1.push({kind:"intro"});
+for(const j of [1,2,3]){dp1[key(1<<j,j)]={val:W1[0][j],par:0};fillOrder.push({m:1<<j,j,step:steps1.length});steps1.push({kind:"base",mask:1<<j,j});}
+for(const size of [2,3]){
+  for(let m=2;m<16;m+=2){ if(popcount(m)!==size)continue;
+    for(let j=1;j<4;j++){ if(!(m>>j&1))continue;
+      const prev=m^(1<<j), cands=[];
+      for(let i=1;i<4;i++){ if(!(prev>>i&1))continue; const a=dp1[key(prev,i)].val; cands.push({i,a,w:W1[i][j],val:a+W1[i][j]}); }
+      let best=cands[0]; for(const c of cands) if(c.val<best.val) best=c;
+      dp1[key(m,j)]={val:best.val,par:best.i};
+      fillOrder.push({m,j,step:steps1.length});
+      steps1.push({kind:"rec",mask:m,j,prev,cands,best});
+    }
+  }
+}
+{ const full=14,cands=[]; for(let j=1;j<4;j++){const a=dp1[key(full,j)].val;cands.push({i:j,a,w:W1[j][0],val:a+W1[j][0]});}
+  let best=cands[0]; for(const c of cands) if(c.val<best.val) best=c;
+  steps1.push({kind:"close",cands,best}); steps1.push({kind:"answer",best}); }
+
+function path1(m,j){const nodes=[];while(true){nodes.unshift(j);if(m===(1<<j)){nodes.unshift(0);break;}const p=dp1[key(m,j)].par;m^=(1<<j);j=p;}return nodes;}
+
+const g1=document.getElementById("g1");
+const EDGES=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+function labelPos(a,b){ // วางตัวเลขให้เส้นทแยงไม่ชนกัน
+  const [x1,y1]=POS[a],[x2,y2]=POS[b];
+  let t=.5; if(a===0&&b===3)t=.72; if(a===1&&b===2)t=.28;
+  const x=x1+(x2-x1)*t,y=y1+(y2-y1)*t; let ox=0,oy=0;
+  if(y1===y2)oy=-10; else if(x1===x2)ox=-14; else {ox=a===0?10:-10;oy=-6;}
+  return [x+ox,y+oy];
+}
+function draw1(st){
+  g1.innerHTML="";
+  const defs=el("defs",{},g1);
+  const mk=el("marker",{id:"arr1",viewBox:"0 0 10 10",refX:"9",refY:"5",markerWidth:"6",markerHeight:"6",orient:"auto-start-reverse"},defs);
+  el("path",{d:"M0,0 L10,5 L0,10 z",fill:"var(--teal)"},mk);
+  const inS=st.mask||0, win=[], lose=[];
+  let target=-1;
+  if(st.kind==="base"){win.push(0,st.j);target=st.j;}
+  if(st.kind==="rec"){win.push(...path1(st.mask,st.j));target=st.j;for(const c of st.cands)if(c!==st.best)lose.push([c.i,st.j]);}
+  if(st.kind==="close"||st.kind==="answer"){win.push(...path1(14,st.best.i),0);if(st.kind==="close")for(const c of st.cands)if(c!==st.best)lose.push([c.i,0]);}
+  for(const [a,b] of EDGES){
+    const [x1,y1]=POS[a],[x2,y2]=POS[b];
+    el("line",{x1,y1,x2,y2,stroke:"var(--line)","stroke-width":2},g1);
+    const [lx,ly]=labelPos(a,b);
+    el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":13,fill:"var(--muted)"},g1,W1[a][b]);
+  }
+  for(const [a,b] of lose){const [x1,y1]=POS[a],[x2,y2]=POS[b];el("line",{x1,y1,x2,y2,stroke:"var(--amber)","stroke-width":2.5,"stroke-dasharray":"6 5"},g1);}
+  for(let k=0;k+1<win.length;k++){
+    const a=win[k],b=win[k+1],[x1,y1]=POS[a],[x2,y2]=POS[b];
+    const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy),r=24;
+    el("line",{x1:x1+dx/L*r,y1:y1+dy/L*r,x2:x2-dx/L*(r+2),y2:y2-dy/L*(r+2),stroke:"var(--teal)","stroke-width":4,"stroke-linecap":"round","marker-end":"url(#arr1)"},g1);
+  }
+  N1.forEach((n,k)=>{
+    const [x,y]=POS[k]; const visited=(inS>>k&1)||(st.kind==="close"||st.kind==="answer")&&k>0;
+    el("circle",{cx:x,cy:y,r:21,fill:visited?"var(--teal-soft)":"var(--surface)",stroke:k===target?"var(--amber)":(k===0?"var(--ink)":"var(--teal)"),"stroke-width":k===target?4:2},g1);
+    el("text",{x,y:y+6,"text-anchor":"middle","font-size":18,"font-weight":600,fill:"var(--ink)"},g1,n);
+  });
+  el("text",{x:POS[0][0],y:POS[0][1]-32,"text-anchor":"middle","font-size":11,fill:"var(--muted)"},g1,"เริ่ม/จบ");
+}
+const e1=document.getElementById("e1"), t1=document.getElementById("t1");
+function candHTML(cands,best,lhs,fmt){
+  let s='<div class="cand">';
+  for(const c of cands){const w=c===best;s+=`<div class="row ${w?"win":"lose"}"><span class="tag">${w?"ชนะ":"แพ้"}</span><span>${fmt(c)}</span><span>= ${c.val}</span></div>`;}
+  return s+"</div>";
+}
+function explain1(st,i){
+  const tag=`<span class="step-tag">ขั้น ${i+1} / ${steps1.length}</span>`;
+  if(st.kind==="intro") return tag+`<h3>ก่อนเริ่ม : ถ้าลองทุกเส้นทาง</h3>
+    <p>มี 3 เมืองให้สลับลำดับ ได้ 3! = 6 เส้นทาง ทุกเส้นบวกระยะใหม่ตั้งแต่ต้น แม้ว่าหลายเส้นจะมีช่วงต้นเหมือนกัน</p>
+    <div class="formula">A→B→D→C→A = 10+25+30+15 = 80
+A→D→B→C→A = 20+25+35+15 = 95
+          ↑ ทั้งคู่ผ่าน {B,D} แล้วมายืนที่ C</div>
+    <p>ข้อสังเกตสำคัญ : เมื่อผ่าน {B,D} มาแล้วและยืนที่ C จะเดินต่ออย่างไรก็ไม่ขึ้นกับว่ามาทางไหน
+      จึงเก็บแค่ <b>ระยะที่ดีที่สุด</b> ของ (เซต, จุดที่ยืน) ไว้ในตารางก็พอ</p>`;
+  if(st.kind==="base") return tag+`<h3>กรณีฐาน : เซตขนาด 1</h3>
+    <p>ยังไม่ผ่านเมืองอื่น เดินจาก A ไป ${N1[st.j]} ตรง ๆ ได้ทางเดียว</p>
+    <div class="formula">Cost(${setName(st.mask)}, ${N1[st.j]}) = cost(A, ${N1[st.j]}) = ${W1[0][st.j]}</div>`;
+  if(st.kind==="rec"){
+    const S=setName(st.mask),J=N1[st.j];
+    return tag+`<h3>Cost(${S}, ${J}) : ผ่าน ${S} ครบแล้วจบที่ ${J}</h3>
+      <p>ถามว่า "ก่อนถึง ${J} ยืนอยู่ที่ไหน?" ต้องเป็นเมืองใน ${setName(st.prev)} ลองทุกตัว แล้วใช้ค่าที่เก็บไว้ในตารางแล้ว (แถวสีเหลือง)</p>
+      ${candHTML(st.cands,st.best,"",c=>`Cost(${setName(st.prev)}, ${N1[c.i]}) + cost(${N1[c.i]},${J}) = ${c.a} + ${c.w}`)}
+      <p>เก็บ <b class="mono">${st.best.val}</b> ลงตาราง พร้อมจำว่ามาจาก ${N1[st.best.i]} (ใช้ย้อนหาเส้นทางตอนจบ)</p>`;
+  }
+  if(st.kind==="close") return tag+`<h3>ปิดทัวร์ : กลับไป A</h3>
+    <p>ผ่านครบ {B,C,D} แล้ว เหลือแค่เลือกว่าจะจบที่เมืองไหนก่อนกลับ A</p>
+    ${candHTML(st.cands,st.best,"",c=>`Cost({B,C,D}, ${N1[c.i]}) + cost(${N1[c.i]},A) = ${c.a} + ${c.w}`)}`;
+  const p=path1(14,st.best.i); p.push(0);
+  const back=[];{let m=14,j=st.best.i;while(true){back.push(`${N1[j]} มาจาก ${m===(1<<j)?"A":N1[dp1[key(m,j)].par]}`);if(m===(1<<j))break;const q=dp1[key(m,j)].par;m^=(1<<j);j=q;}}
+  return tag+`<h3>คำตอบ : ${st.best.val}</h3>
+    <p>ย้อนรอยจากช่อง "มาจาก" ในตาราง ทีละช่องจากท้ายไปต้น</p>
+    <div class="formula">${back.join("\n")}</div>
+    <div class="formula">${p.map(k=>N1[k]).join(" → ")}  = ${st.best.val}</div>
+    <p>คำนวณแค่ 12 ช่องในตาราง ถ้า n ใหญ่ขึ้น ช่องจะโต n·2ⁿ ส่วน brute force โต n! ซึ่งเร็วกว่ามาก</p>`;
+}
+function table1(i){
+  const st=steps1[i]; const reads=new Set();
+  if(st.kind==="rec")for(const c of st.cands)reads.add(key(st.prev,c.i));
+  if(st.kind==="close")for(const c of st.cands)reads.add(key(14,c.i));
+  let s="<tr><th>|S|</th><th>state</th><th>ค่า</th><th>มาจาก</th></tr>", lastSize=0;
+  for(const f of fillOrder){
+    const sz=popcount(f.m);
+    if(sz!==lastSize){s+=`<tr class="layer"><td colspan="4">เซตขนาด ${sz}</td></tr>`;lastSize=sz;}
+    const d=dp1[key(f.m,f.j)], k=key(f.m,f.j);
+    const cls=f.step>i?"pending":(f.step===i?"now":(reads.has(k)?"read":""));
+    s+=`<tr class="${cls}"><td>${sz}</td><td>Cost(${setName(f.m)}, ${N1[f.j]})</td><td>${d.val}</td><td>${d.par===0?"A":N1[d.par]}</td></tr>`;
+  }
+  t1.innerHTML=s;
+  const now=t1.querySelector("tr.now"); if(now&&now.scrollIntoView){const box=t1.parentElement;box.scrollTop=Math.max(0,now.offsetTop-box.clientHeight/2);}
+}
+const s1=makeStepper(document.getElementById("c1"),()=>steps1.length,i=>{const st=steps1[i];draw1(st);e1.innerHTML=explain1(st,i);table1(i);},1400);
+s1.go(0);
+
+/* =========================================================
+   บทที่ 2 : โกดัง
+   ========================================================= */
+const GRID=[
+[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]];
+for(let r=4;r<=14;r++)GRID.push([0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0]);
+GRID.push(new Array(20).fill(0),new Array(20).fill(0),[0,0,1,1,1,0,1,0,0,1,0,1,0,1,0,0,0,0,0,0]);
+const R=18,C=20,CS=24,OX=22,OY=22;
+const PICK=[[17,6],[5,1],[4,17],[0,12],[13,17],[7,8],[8,17],[17,11],[13,4],[7,14]];
+const ENT=0, EXIT=17*C+19;
+const idx=(r,c)=>r*C+c, rc=i=>[Math.floor(i/C),i%C];
+const walk=(r,c)=>r>=0&&r<R&&c>=0&&c<C&&GRID[r][c]===0;
+const DIRS=[[-1,0],[1,0],[0,-1],[0,1]];
+function access(p){const [r,c]=PICK[p],out=[];for(const [dr,dc] of DIRS)if(walk(r+dr,c+dc))out.push(idx(r+dr,c+dc));return out;}
+const bfsCache=new Map();
+function bfs(src){
+  if(bfsCache.has(src))return bfsCache.get(src);
+  const dist=new Int16Array(R*C).fill(-1),par=new Int32Array(R*C).fill(-1),q=[src];dist[src]=0;
+  for(let h=0;h<q.length;h++){const u=q[h],[r,c]=rc(u);for(const [dr,dc] of DIRS){const nr=r+dr,nc=c+dc;if(!walk(nr,nc))continue;const v=idx(nr,nc);if(dist[v]<0){dist[v]=dist[u]+1;par[v]=u;q.push(v);}}}
+  const res={dist,par};bfsCache.set(src,res);return res;
+}
+const D=(a,b)=>bfs(a).dist[b];
+function cellPath(a,b){const {par}=bfs(a),out=[];let v=b;while(v!==-1){out.push(v);if(v===a)break;v=par[v];}return out.reverse();}
+const fmtCell=i=>{const [r,c]=rc(i);return `(${r},${c})`;};
+
+let sel=[2,1,8,3].map(x=>x-1); // ค่าเริ่มต้น : จุด 1, 2, 3, 8
+let M=null, steps2=[];
+
+function solve(groups,withTrace){
+  const k=groups.length,full=(1<<k)-1,dp=new Array((1<<k)*k).fill(null);
+  const masks=[];for(let m=1;m<=full;m++)masks.push(m);
+  masks.sort((a,b)=>popcount(a)-popcount(b)||a-b);
+  const order=[];
+  for(const m of masks)for(let i=0;i<k;i++){
+    if(!(m>>i&1))continue;
+    const prev=m^(1<<i),arr=[];let tried=0;
+    for(let ci=0;ci<groups[i].length;ci++){
+      const g=groups[i][ci];
+      if(prev===0){arr.push({val:D(ENT,g),pj:-1,pc:-1,a:0,d:D(ENT,g)});continue;}
+      let best=null;
+      for(let j=0;j<k;j++){ if(!(prev>>j&1))continue; const pa=dp[prev*k+j];
+        for(let cj=0;cj<groups[j].length;cj++){tried++;const a=pa[cj].val,d=D(groups[j][cj],g),v=a+d;if(!best||v<best.val)best={val:v,pj:j,pc:cj,a,d};}}
+      arr.push(best);
+    }
+    dp[m*k+i]=arr; if(withTrace)order.push({m,i,tried});
+  }
+  let fin=null;const finals=[];
+  for(let i=0;i<k;i++)groups[i].forEach((g,ci)=>{const a=dp[full*k+i][ci].val,d=D(g,EXIT),v=a+d;finals.push({i,ci,a,d,val:v});if(!fin||v<fin.val)fin={i,ci,a,d,val:v};});
+  return {k,full,dp,order,fin,finals};
+}
+function chain(m,i,ci){const out=[];while(i>=0){out.unshift({i,ci});const s=M.dp[m*M.k+i][ci];const pm=m^(1<<i);m=pm;const pi=s.pj;ci=s.pc;i=pi;}return out;}
+function routeCells(ch,toExit){
+  const pts=[ENT,...ch.map(x=>M.groups[x.i][x.ci])];if(toExit)pts.push(EXIT);
+  let cells=[ENT];for(let t=0;t+1<pts.length;t++){const seg=cellPath(pts[t],pts[t+1]);cells=cells.concat(seg.slice(1));}
+  return cells;
+}
+
+function build(){
+  const groups=sel.map(access);
+  M=solve(groups,true); M.groups=groups;
+  const fixed=solve(groups.map(g=>[g[0]]),false);
+  M.fixedVal=fixed.fin.val;
+  steps2=[{kind:"access"},{kind:"bfs"}];
+  for(const o of M.order)steps2.push({kind:"state",...o});
+  steps2.push({kind:"close"},{kind:"walk"});
+  M.stateIndex={};M.order.forEach((o,t)=>{M.stateIndex[o.m*M.k+o.i]=t+2;});
+  M.route=routeCells(chain(M.full,M.fin.i,M.fin.ci),true);
+}
+
+const g2=document.getElementById("g2");
+let anim=null;
+function cxy(i){const [r,c]=rc(i);return [OX+c*CS+CS/2,OY+r*CS+CS/2];}
+function polyline(cells,attrs){const pts=cells.map(cxy).map(p=>p.join(",")).join(" ");return el("polyline",Object.assign({points:pts,fill:"none","stroke-linejoin":"round","stroke-linecap":"round"},attrs),g2);}
+function drawBase(opts){
+  g2.innerHTML="";
+  for(let c=0;c<C;c++)el("text",{x:OX+c*CS+CS/2,y:15,"text-anchor":"middle","font-size":9,fill:"var(--muted)"},g2,c);
+  for(let r=0;r<R;r++)el("text",{x:11,y:OY+r*CS+CS/2+3,"text-anchor":"middle","font-size":9,fill:"var(--muted)"},g2,r);
+  const heat=opts.heat;
+  let maxd=1;if(heat)for(let i=0;i<R*C;i++)if(heat[i]>maxd)maxd=heat[i];
+  for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+    const shelf=GRID[r][c]===1,x=OX+c*CS,y=OY+r*CS;
+    el("rect",{x:x+.5,y:y+.5,width:CS-1,height:CS-1,rx:2,fill:shelf?"var(--shelf)":"var(--aisle)"},g2);
+    if(heat&&!shelf){const v=heat[idx(r,c)];el("rect",{x:x+.5,y:y+.5,width:CS-1,height:CS-1,rx:2,fill:"var(--teal)",opacity:(0.08+0.62*(1-v/maxd)).toFixed(2)},g2);
+      el("text",{x:x+CS/2,y:y+CS/2+3.5,"text-anchor":"middle","font-size":9.5,fill:"var(--ink)"},g2,v);}
+  }
+  const [ex,ey]=cxy(ENT),[xx,xy]=cxy(EXIT);
+  el("circle",{cx:ex,cy:ey,r:9,fill:"var(--ent)"},g2);el("text",{x:ex,y:ey+3,"text-anchor":"middle","font-size":8,fill:"#fff","font-weight":600},g2,"IN");
+  el("circle",{cx:xx,cy:xy,r:9,fill:"var(--exit)"},g2);el("text",{x:xx,y:xy+3,"text-anchor":"middle","font-size":7,fill:"#fff","font-weight":600},g2,"OUT");
+}
+function drawPicks(mask,cur,dim){
+  sel.forEach((p,b)=>{
+    const [r,c]=PICK[p],x=OX+c*CS,y=OY+r*CS,on=mask!=null&&(mask>>b&1);
+    const fill=dim?(on?"var(--pick)":"var(--surface)"):"var(--pick)";
+    el("rect",{x:x+3,y:y+3,width:CS-6,height:CS-6,rx:3,fill,stroke:b===cur?"var(--teal)":"var(--pick-ink)","stroke-width":b===cur?3:1},g2);
+    el("text",{x:x+CS/2,y:y+CS/2+4,"text-anchor":"middle","font-size":10.5,"font-weight":600,fill:(dim&&!on)?"var(--muted)":"var(--pick-ink)"},g2,p+1);
+  });
+}
+function accessDot(cell,label,win){
+  const [x,y]=cxy(cell);
+  el("circle",{cx:x,cy:y,r:9.5,fill:win?"var(--teal)":"var(--surface)",stroke:win?"var(--teal)":"var(--amber)","stroke-width":2},g2);
+  if(label!=null)el("text",{x,y:y+3.5,"text-anchor":"middle","font-size":label>99?8:9.5,"font-weight":600,fill:win?"var(--surface)":"var(--ink)"},g2,label);
+}
+function stopAnim(){if(anim){cancelAnimationFrame(anim);anim=null;}}
+
+const e2=document.getElementById("e2"),t2=document.getElementById("t2"),bitsEl=document.getElementById("bits"),maskline=document.getElementById("maskline");
+const bitcard=document.getElementById("bitcard"),ccard=document.getElementById("ccard");
+function drawBits(mask,cur){
+  bitsEl.innerHTML="";
+  for(let b=M.k-1;b>=0;b--){const d=h("div","bit"+((mask>>b&1)?" on":"")+(b===cur?" cur":""),`<span>บิต ${b}</span><b>${mask>>b&1}</b><span>จุด ${sel[b]+1}</span>`);bitsEl.appendChild(d);}
+  maskline.textContent=`mask = 0b${mask.toString(2).padStart(M.k,"0")} = ${mask}`;
+}
+function layers(stepIdx){
+  const box=document.getElementById("layers");box.innerHTML="";
+  const done=Math.max(0,Math.min(M.order.length,stepIdx-1));
+  const totals={},dn={};M.order.forEach((o,t)=>{const p=popcount(o.m);totals[p]=(totals[p]||0)+1;if(t<done)dn[p]=(dn[p]||0)+1;});
+  for(let p=1;p<=M.k;p++){const row=h("div","layer-row",`<span>หยิบแล้ว ${p} จุด</span><div class="bar"><span style="width:${(100*(dn[p]||0)/totals[p]).toFixed(1)}%"></span></div><span class="mono">${dn[p]||0}/${totals[p]}</span>`);box.appendChild(row);}
+}
+function stats(){
+  const fact=n=>{let f=1;for(let i=2;i<=n;i++)f*=i;return f;};
+  const nState=M.order.length, cells=M.groups.reduce((a,g)=>a+g.length,0);
+  document.getElementById("stats").innerHTML=`
+    <div class="stat good"><span class="k">ก้าวน้อยที่สุด (เก็บ c)</span><span class="v">${M.fin.val}</span></div>
+    <div class="stat ${M.fixedVal>M.fin.val?"bad":""}"><span class="k">ถ้าไม่เก็บ c (ยืนช่องแรกเสมอ)</span><span class="v">${M.fixedVal}</span></div>
+    <div class="stat"><span class="k">state (mask, i)</span><span class="v">${nState.toLocaleString()}</span></div>
+    <div class="stat"><span class="k">brute force ต้องลอง</span><span class="v">${fact(M.k).toLocaleString()}</span></div>`;
+  document.getElementById("statnote").textContent=
+    `จุด ${M.k} จุด มีช่องยืนรวม ${cells} ช่อง · state (mask, i) = k·2^(k−1) = ${nState.toLocaleString()} · brute force ต้องลองทุกลำดับ k! และยังต้องเลือกช่องยืนของทุกจุดอีก`+
+    (M.fixedVal>M.fin.val?` · ถ้าไม่เก็บ c จะเสียเพิ่ม ${M.fixedVal-M.fin.val} ก้าว`:" · ชุดจุดนี้ช่องแรกบังเอิญดีพอ ลองเลือกชุดอื่นดู")+
+    (M.k===10?" · ครบ 10 จุดได้ 72 ก้าว ตรงกับผลของโปรแกรม Python":"");
+}
+
+function render2(i){
+  stopAnim();
+  const st=steps2[i],tag=`<span class="step-tag">ขั้น ${i+1} / ${steps2.length}</span>`;
+  layers(i);
+  bitcard.hidden=st.kind!=="state"; ccard.hidden=!(st.kind==="state"||st.kind==="close");
+  if(st.kind==="access"){
+    drawBase({});
+    sel.forEach((p,b)=>{const [pr,pc]=PICK[p];const [px,py]=[OX+pc*CS+CS/2,OY+pr*CS+CS/2];M.groups[b].forEach(g=>{const [x,y]=cxy(g);el("line",{x1:px,y1:py,x2:x,y2:y,stroke:"var(--amber)","stroke-width":2},g2);});});
+    sel.forEach((p,b)=>M.groups[b].forEach(g=>accessDot(g,null,false)));
+    drawPicks(null,-1,false);
+    const list=sel.map((p,b)=>`จุด ${String(p+1).padStart(2)} ${fmtCell(idx(...PICK[p])).padEnd(8)} → ${M.groups[b].map(fmtCell).join(", ")}`).join("\n");
+    e2.innerHTML=tag+`<h3>ขั้นเตรียม 1 : ช่องยืนหยิบ (access cells)</h3>
+      <p>จุดหยิบอยู่บนชั้นวาง (สีเข้ม) เดินเข้าไปไม่ได้ ต้องยืนหยิบจากช่องทางเดินที่อยู่ติดกัน วงกลมคือช่องที่ยืนหยิบได้</p>
+      <div class="formula">${list}</div>
+      <p>นี่คือจุดที่ต่างจากสไลด์ : เมือง 1 เมืองมีตำแหน่งเดียว แต่จุดหยิบ 1 จุดมีได้ 1–4 ตำแหน่ง</p>`;
+    return;
+  }
+  if(st.kind==="bfs"){
+    drawBase({heat:bfs(ENT).dist});drawPicks(null,-1,false);
+    e2.innerHTML=tag+`<h3>ขั้นเตรียม 2 : ระยะทางจริงด้วย BFS</h3>
+      <p>สไลด์ให้ตารางระยะทางมา แต่ในโกดังต้องหาเอง ตัวเลขในช่องคือจำนวนก้าวจาก IN ที่หาด้วย BFS (ทุกก้าวหนัก 1 เท่ากัน BFS จึงให้ผลเท่ากับ Dijkstra)</p>
+      <p>ทำ BFS แบบนี้จาก IN, OUT และทุกช่องยืน จะได้ <span class="mono">d(u, v)</span> ของทุกคู่ ใช้เป็น cost(i, j) ในสมการ</p>
+      <div class="formula">ตัวอย่าง d(IN, ${fmtCell(M.groups[0][0])}) = ${D(ENT,M.groups[0][0])} ก้าว</div>`;
+    return;
+  }
+  if(st.kind==="state"){
+    const {m,i:cur}=st,arr=M.dp[m*M.k+cur],prev=m^(1<<cur);
+    drawBase({});
+    let bestCi=0;arr.forEach((s,ci)=>{if(s.val<arr[bestCi].val)bestCi=ci;});
+    arr.forEach((s,ci)=>{if(ci!==bestCi)polyline(routeCells(chain(m,cur,ci),false),{stroke:"var(--amber)","stroke-width":2,"stroke-dasharray":"5 4"});});
+    polyline(routeCells(chain(m,cur,bestCi),false),{stroke:"var(--teal)","stroke-width":4,opacity:.9});
+    drawPicks(m,cur,true);
+    M.groups[cur].forEach((g,ci)=>accessDot(g,arr[ci].val,ci===bestCi));
+    drawBits(m,cur);
+    const P=sel[cur]+1;
+    let rows="<tr><th>ช่องยืน c</th><th>f</th><th>มาจาก</th><th>คำนวณ</th></tr>";
+    arr.forEach((s,ci)=>{
+      const from=s.pj<0?"IN":`จุด ${sel[s.pj]+1} @ ${fmtCell(M.groups[s.pj][s.pc])}`;
+      const calc=s.pj<0?`d(IN, c) = ${s.d}`:`${s.a} + d = ${s.a} + ${s.d}`;
+      rows+=`<tr class="${ci===bestCi?"now":""}"><td>${fmtCell(M.groups[cur][ci])}</td><td>${s.val}</td><td>${from}</td><td>${calc}</td></tr>`;
+    });
+    t2.innerHTML=rows;
+    const picked=sel.filter((_,b)=>m>>b&1).map(x=>x+1).join(", ");
+    if(prev===0){
+      e2.innerHTML=tag+`<h3>กรณีฐาน : หยิบจุด ${P} เป็นจุดแรก</h3>
+        <p>mask มีบิตเดียว แปลว่ายังไม่หยิบอะไรมาก่อน เดินจาก IN ตรงไปยังช่องยืนของจุด ${P}</p>
+        <div class="formula">f({${P}}, ${P}, c) = d(IN, c)</div>
+        <p>จุด ${P} มี ${arr.length} ช่องยืน จึงต้องเก็บ ${arr.length} ค่า ไม่ใช่ค่าเดียวแบบในสไลด์ ตัวเลขในวงกลมคือค่าของแต่ละช่อง</p>`;
+    }else{
+      const pv=sel.filter((_,b)=>prev>>b&1).map(x=>x+1).join(", ");
+      e2.innerHTML=tag+`<h3>f(mask, ${P}, c) : หยิบ {${picked}} ครบ แล้วยืนหยิบจุด ${P}</h3>
+        <p>ก่อนมาหยิบจุด ${P} ต้องเพิ่งหยิบจุดใดจุดหนึ่งใน {${pv}} และยืนอยู่ช่องใดช่องหนึ่งของจุดนั้น
+          ลองทุกคู่ (จุด j, ช่อง c′) รวม ${st.tried} แบบ ค่าของ state ก่อนหน้าอ่านจากตารางได้เลย ไม่ต้องคำนวณใหม่</p>
+        <div class="formula">f(mask, ${P}, c) = min over j, c′ [ f(mask − {${P}}, j, c′) + d(c′, c) ]</div>
+        <p>เส้นทึบคือเส้นทางที่ดีที่สุดถ้าจบที่ช่องยืนที่ชนะ เส้นประคือเส้นที่ดีที่สุดถ้าจบที่ช่องยืนอื่น
+          ต้องเก็บทุกช่องไว้ เพราะช่องที่แพ้ตอนนี้อาจชนะตอนเดินต่อไปจุดถัดไป</p>`;
+    }
+    return;
+  }
+  if(st.kind==="close"){
+    drawBase({});
+    polyline(M.route,{stroke:"var(--teal)","stroke-width":4,opacity:.9});
+    drawPicks(M.full,-1,true);
+    const top=M.finals.slice().sort((a,b)=>a.val-b.val);
+    top.forEach(f=>{if(f!==M.fin)accessDot(M.groups[f.i][f.ci],f.val,false);});
+    accessDot(M.groups[M.fin.i][M.fin.ci],M.fin.val,true);
+    let rows="<tr><th>จบที่จุด</th><th>ช่องยืน</th><th>f</th><th>+ d(c, OUT)</th><th>รวม</th></tr>";
+    top.forEach(f=>{rows+=`<tr class="${f===M.fin?"now":""}"><td>${sel[f.i]+1}</td><td>${fmtCell(M.groups[f.i][f.ci])}</td><td>${f.a}</td><td>${f.d}</td><td>${f.val}</td></tr>`;});
+    t2.innerHTML=rows;
+    e2.innerHTML=tag+`<h3>ปิดท้าย : เดินไปทางออก</h3>
+      <p>หยิบครบทุกจุดแล้ว (mask = ${M.full}) ในสไลด์ต้องกลับไป A แต่โจทย์นี้จบที่ OUT จึงบวก d(c, OUT) แทน แล้วเลือกค่าที่น้อยที่สุด</p>
+      <div class="formula">คำตอบ = min over i, c [ f(ครบ, i, c) + d(c, OUT) ] = ${M.fin.a} + ${M.fin.d} = ${M.fin.val}</div>
+      <p>ตัวเลขในวงกลมคือผลรวมถ้าจบที่ช่องนั้น ตารางด้านล่างเรียงจากน้อยไปมาก</p>`;
+    return;
+  }
+  // walk
+  drawBase({});
+  const ch=chain(M.full,M.fin.i,M.fin.ci);
+  polyline(M.route,{stroke:"var(--teal)","stroke-width":4,opacity:.35});
+  const live=polyline([M.route[0]],{stroke:"var(--teal)","stroke-width":4});
+  drawPicks(M.full,-1,false);
+  ch.forEach((x,t)=>{const [px,py]=cxy(M.groups[x.i][x.ci]);el("circle",{cx:px,cy:py,r:8,fill:"var(--teal)"},g2);el("text",{x:px,y:py+3.5,"text-anchor":"middle","font-size":9.5,"font-weight":600,fill:"var(--surface)"},g2,t+1);});
+  const dot=el("circle",{r:7,fill:"var(--ink)",stroke:"var(--surface)","stroke-width":2},g2);
+  const counter=el("text",{x:OX+CS*20-4,y:OY+R*CS+15,"text-anchor":"end","font-size":12,"font-weight":600,fill:"var(--ink)"},g2,"");
+  const orderTxt=ch.map((x,t)=>`${t+1}. จุด ${String(sel[x.i]+1).padStart(2)} ยืนที่ ${fmtCell(M.groups[x.i][x.ci])}`).join("\n");
+  e2.innerHTML=tag+`<h3>ผลลัพธ์ : ${M.fin.val} ก้าว</h3>
+    <p>ย้อนรอยจากช่อง "มาจาก" ของแต่ละ state จะได้ลำดับการหยิบและช่องยืน แล้วต่อเส้นทาง BFS ระหว่างช่องเหล่านั้น</p>
+    <div class="formula">${orderTxt}</div>
+    <p>เส้นทางมี ${M.route.length} ช่อง = ${M.route.length-1} ก้าว ตัวเลขสีเขียวบนแผนที่คือลำดับการหยิบ</p>`;
+  const total=M.route.length-1;
+  const place=t=>{const a=Math.floor(t),b=Math.min(total,a+1),f=t-a;const [x1,y1]=cxy(M.route[a]),[x2,y2]=cxy(M.route[b]);dot.setAttribute("cx",x1+(x2-x1)*f);dot.setAttribute("cy",y1+(y2-y1)*f);
+    live.setAttribute("points",M.route.slice(0,a+1).map(cxy).map(p=>p.join(",")).join(" ")+` ${x1+(x2-x1)*f},${y1+(y2-y1)*f}`);counter.textContent=`ก้าวที่ ${a} / ${total}`;};
+  if(reduced){place(total);return;}
+  const t0=performance.now(),dur=Math.max(3000,total*70);
+  const tick=now=>{const t=Math.min(total,(now-t0)/dur*total);place(t);if(t<total)anim=requestAnimationFrame(tick);else anim=null;};
+  anim=requestAnimationFrame(tick);
+}
+
+const chipsEl=document.getElementById("chips"),chipnote=document.getElementById("chipnote");
+let s2;
+function renderChips(){
+  chipsEl.innerHTML="";
+  PICK.forEach((p,k)=>{const b=h("button","chip",`${k+1} <span style="opacity:.7">(${p[0]},${p[1]})</span>`);b.id="chip"+(k+1);b.setAttribute("aria-pressed",sel.includes(k)?"true":"false");
+    b.onclick=()=>{if(sel.includes(k)){if(sel.length===1)return;sel=sel.filter(x=>x!==k);}else sel=[...sel,k].sort((a,b)=>a-b);refresh();};chipsEl.appendChild(b);});
+  const all=h("button","chip","เลือกครบ 10 จุด");all.id="chipall";all.onclick=()=>{sel=PICK.map((_,k)=>k);refresh();};chipsEl.appendChild(all);
+  const few=h("button","chip","ตัวอย่าง 4 จุด");few.id="chipfew";few.onclick=()=>{sel=[0,1,2,7];refresh();};chipsEl.appendChild(few);
+  chipnote.textContent=`เลือกอยู่ ${sel.length} จุด → มี ${steps2.length} ขั้น`+(sel.length>5?" (เยอะ ใช้แถบเลื่อนข้ามไปดูขั้นท้าย ๆ ได้)":" · แนะนำ 3–5 จุดสำหรับดูทีละขั้น");
+}
+function refresh(){sel.sort((a,b)=>a-b);build();renderChips();stats();s2.reset();}
+sel.sort((a,b)=>a-b);build();
+s2=makeStepper(document.getElementById("c2"),()=>steps2.length,render2,()=>steps2.length>60?250:1300);
+renderChips();stats();s2.go(0);
+})();
+</script>
+</body>
+</html>
