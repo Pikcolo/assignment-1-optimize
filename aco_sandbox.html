@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="หน้าจำลอง Ant Colony Optimization สำหรับโจทย์หาเส้นทางหยิบสินค้าในโกดัง — 241-405 Optimization">
+<title>Warehouse Ant Colony</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --ground:#E4E8EC;
+  --surface:#FFFFFF;
+  --surface-2:#F2F5F8;
+  --ink:#15191E;
+  --muted:#5A636D;
+  --line:#C7CFD8;
+  --line-soft:#DDE3E9;
+
+  --pher:#F2610C;
+  --pher-hi:#FFB03A;
+  --pick:#E8A800;
+  --in:#1D9455;
+  --out:#D8402F;
+  --ant:#2E7FB8;
+  --shelf:#3C454F;
+  --walk:#F7F9FB;
+
+  --shadow:0 1px 2px rgba(20,28,38,.06), 0 8px 24px rgba(20,28,38,.07);
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0D1115;
+    --surface:#151A20;
+    --surface-2:#1B222A;
+    --ink:#E0E6EC;
+    --muted:#8B959F;
+    --line:#242C35;
+    --line-soft:#1E252D;
+
+    --pher:#FF7A22;
+    --pher-hi:#FFC65A;
+    --pick:#FFC845;
+    --in:#33B96C;
+    --out:#F05946;
+    --ant:#5AA9DC;
+    --shelf:#2A323B;
+    --walk:#10161C;
+
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0D1115;
+  --surface:#151A20;
+  --surface-2:#1B222A;
+  --ink:#E0E6EC;
+  --muted:#8B959F;
+  --line:#242C35;
+  --line-soft:#1E252D;
+
+  --pher:#FF7A22;
+  --pher-hi:#FFC65A;
+  --pick:#FFC845;
+  --in:#33B96C;
+  --out:#F05946;
+  --ant:#5AA9DC;
+  --shelf:#2A323B;
+  --walk:#10161C;
+
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+img{max-width:100%}
+
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Sans Thai","IBM Plex Sans",system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  padding-inline:18px;
+  padding-block:18px 40px;
+}
+
+.wrap{max-width:1360px;margin-inline:auto;display:flex;flex-direction:column;gap:16px}
+
+/* ---------- header ---------- */
+header{
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 22px;
+  border-bottom:2px solid var(--line);padding-bottom:14px;
+}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{
+  font-family:"Chakra Petch",system-ui,sans-serif;
+  font-weight:700;font-size:clamp(23px,3.4vw,32px);
+  letter-spacing:.01em;margin:0;text-wrap:balance;
+}
+.sub{color:var(--muted);font-size:14px;max-width:62ch}
+.tagpair{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.tag{
+  font-family:"Chakra Petch",sans-serif;font-weight:600;font-size:11.5px;
+  text-transform:uppercase;letter-spacing:.09em;
+  padding:4px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);
+}
+
+/* ---------- layout ---------- */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 336px;gap:16px;align-items:start}
+@media (max-width:980px){ .main{grid-template-columns:minmax(0,1fr)} }
+
+.panel{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+}
+
+/* ---------- stage ---------- */
+.stage{padding:14px;display:flex;flex-direction:column;gap:12px}
+.transport{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+button{
+  font-family:"Chakra Petch",sans-serif;font-weight:600;font-size:14px;
+  color:var(--ink);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:7px;
+  padding:7px 14px;cursor:pointer;transition:background .13s,border-color .13s;
+}
+button:hover{background:var(--line-soft);border-color:var(--muted)}
+button:focus-visible{outline:2.5px solid var(--pher);outline-offset:2px}
+button.primary{
+  background:var(--pher);border-color:var(--pher);color:#fff;min-width:108px;
+}
+button.primary:hover{background:var(--pher-hi);border-color:var(--pher-hi);color:#1b1206}
+.spacer{flex:1}
+
+.canvas-wrap{
+  position:relative;width:100%;background:var(--walk);
+  border:1px solid var(--line);border-radius:8px;overflow:hidden;
+}
+canvas#stage{display:block;width:100%;height:auto}
+
+.legend{
+  display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--muted);
+}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.swatch{width:13px;height:13px;border-radius:3px;border:1px solid rgba(128,128,128,.45)}
+.swatch.line{height:4px;width:26px;border-radius:2px;border:none}
+
+/* ---------- readouts ---------- */
+.readout{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;
+}
+.cell{background:var(--surface);padding:9px 11px;display:flex;flex-direction:column;gap:1px}
+.cell .k{
+  font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+}
+.cell .v{
+  font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:20px;
+  font-variant-numeric:tabular-nums;line-height:1.25;
+}
+.cell .v small{font-size:12px;color:var(--muted);font-weight:400}
+.cell.hero .v{color:var(--pher);font-weight:600}
+
+/* ---------- control rail ---------- */
+.rail{padding:4px 0 10px}
+.group{padding:13px 15px;border-bottom:1px solid var(--line-soft)}
+.group:last-child{border-bottom:none}
+.group > h2{
+  font-family:"Chakra Petch",sans-serif;font-size:11.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.11em;color:var(--muted);
+  margin:0 0 10px;display:flex;align-items:center;gap:8px;
+}
+.group > h2::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500;
+  padding:5px 11px;border:1px solid var(--line);border-radius:6px;
+  background:var(--surface-2);color:var(--ink);cursor:pointer;
+}
+.chip[aria-pressed="true"]{
+  background:var(--ink);color:var(--surface);border-color:var(--ink);
+}
+.chip:focus-visible{outline:2.5px solid var(--pher);outline-offset:2px}
+
+.slider{display:flex;flex-direction:column;gap:3px;margin-bottom:13px}
+.slider:last-child{margin-bottom:0}
+.slider .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.slider label{font-size:13.5px;font-weight:500}
+.slider label .sym{
+  font-family:"IBM Plex Mono",monospace;color:var(--pher);font-weight:600;
+}
+.slider output{
+  font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;
+  font-variant-numeric:tabular-nums;
+}
+.slider .hint{font-size:11.5px;color:var(--muted);line-height:1.45}
+
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:20px;
+  background:transparent;cursor:pointer;margin:0;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:4px;border-radius:2px;background:var(--line);
+}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--pher);border:2px solid var(--surface);margin-top:-5.5px;
+  box-shadow:0 0 0 1px var(--pher);
+}
+input[type=range]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;background:var(--pher);
+  border:2px solid var(--surface);box-shadow:0 0 0 1px var(--pher);
+}
+input[type=range]:focus-visible{outline:2.5px solid var(--pher);outline-offset:3px;border-radius:4px}
+
+.toggles{display:flex;flex-direction:column;gap:7px}
+.toggle{display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer}
+.toggle input{width:16px;height:16px;accent-color:var(--pher);cursor:pointer;margin:0}
+
+.note{
+  font-size:12.5px;color:var(--muted);line-height:1.55;
+  background:var(--surface-2);border-left:3px solid var(--pher);
+  padding:9px 12px;border-radius:0 6px 6px 0;
+}
+.note b{color:var(--ink);font-weight:600}
+
+/* กลุ่มที่พับเก็บได้ */
+.rail details{border-bottom:1px solid var(--line-soft)}
+.rail details:last-child{border-bottom:none}
+.rail details > summary{
+  font-family:"Chakra Petch",sans-serif;font-size:11.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.11em;color:var(--muted);
+  padding:13px 15px;cursor:pointer;list-style:none;
+  display:flex;align-items:center;gap:8px;
+}
+.rail details > summary::-webkit-details-marker{display:none}
+.rail details > summary::after{
+  content:"＋";margin-left:auto;font-family:"IBM Plex Mono",monospace;
+  font-size:13px;color:var(--pher);
+}
+.rail details[open] > summary::after{content:"－"}
+.rail details > summary:hover{color:var(--ink)}
+.rail details > summary:focus-visible{outline:2.5px solid var(--pher);outline-offset:-2px}
+.rail details .group{border-bottom:none;padding-top:0}
+
+/* บรรทัดบอกว่ากำลังดูอะไรอยู่ */
+.viewhint{
+  font-size:12.5px;color:var(--muted);line-height:1.5;
+  background:var(--surface-2);border-radius:7px;padding:8px 12px;
+}
+.viewhint b{color:var(--ink);font-weight:600}
+.subline{
+  font-size:12px;color:var(--muted);
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+
+/* ---------- spark ---------- */
+.spark-wrap{display:flex;flex-direction:column;gap:5px}
+.spark-wrap .cap{
+  font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+}
+canvas#spark{display:block;width:100%;height:64px;border-radius:6px;background:var(--surface-2)}
+
+footer{
+  color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);
+  padding-top:12px;display:flex;flex-wrap:wrap;gap:6px 20px;
+}
+footer code{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink)}
+
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">
+    <h1>Warehouse Ant Colony</h1>
+    <div class="sub">ลองหมุนค่าดูเอง แล้วดูว่าฝูงมดเรียนรู้เส้นทางหยิบสินค้ายังไง — ปรับค่าได้ระหว่างที่รันอยู่</div>
+  </div>
+  <div class="tagpair">
+    <span class="tag">241-405 Optimization</span>
+    <span class="tag">18 × 20 grid</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ================= STAGE ================= -->
+  <section class="panel stage">
+    <div class="transport">
+      <button id="playBtn" class="primary" type="button">▶ เล่น</button>
+      <button id="stepBtn" type="button">⏭ ทีละรอบ</button>
+      <button id="resetBtn" type="button">↺ ล้างฟีโรโมน</button>
+      <span class="spacer"></span>
+      <button id="themeBtn" type="button" title="สลับธีมสว่าง/มืด">◐ ธีม</button>
+    </div>
+
+    <div class="canvas-wrap"><canvas id="stage" width="1000" height="900"></canvas></div>
+
+    <div class="legend">
+      <span><i class="swatch line" style="background:var(--pher)"></i> ฟีโรโมน (ยิ่งหนา = มดยิ่งเห็นตรงกัน)</span>
+      <span><i class="swatch line" style="background:var(--ant)"></i> เส้นทางเดินจริงของมดรอบนี้</span>
+      <span><i class="swatch" style="background:var(--pick)"></i> จุดหยิบสินค้า</span>
+      <span><i class="swatch" style="background:var(--in);border-radius:50%"></i> ทางเข้า</span>
+      <span><i class="swatch" style="background:var(--out);border-radius:50%"></i> ทางออก</span>
+    </div>
+
+    <p class="viewhint" id="viewHint"></p>
+
+    <div class="readout">
+      <div class="cell"><span class="k">รอบที่</span><span class="v" id="mIter">0</span></div>
+      <div class="cell hero"><span class="k">สั้นที่สุดที่เจอ</span><span class="v"><span id="mBest">–</span><small> ก้าว</small></span></div>
+      <div class="cell"><span class="k">เฉลี่ยรอบนี้</span><span class="v"><span id="mAvg">–</span><small> ก้าว</small></span></div>
+      <div class="cell"><span class="k">ฝูงตัดสินใจได้แล้ว</span><span class="v"><span id="mFocus">–</span><small>%</small></span></div>
+    </div>
+
+    <p class="subline">มดในรอบนี้เดินต่างกัน <span id="mLinks">–</span> แบบ
+      — ยิ่งน้อย แปลว่าฝูงยิ่งตกลงกันได้แล้ว</p>
+
+    <div class="spark-wrap">
+      <span class="cap">เส้นทางที่สั้นที่สุดที่เจอมา ตามรอบ</span>
+      <canvas id="spark" width="1000" height="128"></canvas>
+    </div>
+  </section>
+
+  <!-- ================= CONTROL RAIL ================= -->
+  <aside class="panel rail">
+
+    <div class="group">
+      <h2>ลองทำตามนี้</h2>
+      <div class="chips" id="presetChips">
+        <button class="chip" data-preset="report" type="button" aria-pressed="true">ค่าตามรายงาน</button>
+        <button class="chip" data-preset="nobeta" type="button" aria-pressed="false">β = 0 มดตาบอด</button>
+        <button class="chip" data-preset="noalpha" type="button" aria-pressed="false">α = 0 ไม่เรียนรู้</button>
+        <button class="chip" data-preset="greedy" type="button" aria-pressed="false">α = 4 เชื่อเกินไป</button>
+      </div>
+      <p class="note" style="margin-top:10px" id="presetNote">
+        <b>เริ่มที่นี่</b> — กดปุ่มพวกนี้สลับไปมา แล้วดูเส้นสีแดงบนแผนที่
+        ว่ารวมเป็นเส้นทางหรือกระจายมั่ว
+      </p>
+    </div>
+
+    <div class="group">
+      <h2>ขนาดปัญหา</h2>
+      <div class="chips" id="sizeChips">
+        <button class="chip" data-n="10" type="button" aria-pressed="false">10 จุด</button>
+        <button class="chip" data-n="20" type="button" aria-pressed="true">20 จุด</button>
+        <button class="chip" data-n="30" type="button" aria-pressed="false">30 จุด</button>
+        <button class="chip" data-n="50" type="button" aria-pressed="false">50 จุด</button>
+      </div>
+      <p class="note" style="margin-top:10px">
+        ชุดจุดเดียวกับในรายงาน ที่ 10 จุด คำตอบที่ดีที่สุดคือ <b>72 ก้าว</b>
+      </p>
+    </div>
+
+    <div class="group">
+      <h2>ความเร็ว</h2>
+      <div class="slider">
+        <div class="top"><label for="sSpeed">รอบต่อวินาที</label><output id="oSpeed">6 รอบ/วิ</output></div>
+        <input type="range" id="sSpeed" min="1" max="30" step="1" value="6">
+      </div>
+    </div>
+
+    <details>
+      <summary>ปรับค่าละเอียด</summary>
+      <div class="group">
+        <div class="slider">
+          <div class="top">
+            <label for="sBeta">สนใจว่าจุดนั้นใกล้แค่ไหน <span class="sym">β</span></label>
+            <output id="oBeta">3.0</output>
+          </div>
+          <input type="range" id="sBeta" min="0" max="8" step="0.1" value="3">
+          <span class="hint">0 = เดินมั่วไม่สนระยะ · สูงไป = โลภจนกลายเป็น greedy</span>
+        </div>
+        <div class="slider">
+          <div class="top">
+            <label for="sAlpha">เชื่อกลิ่นที่เพื่อนทิ้งไว้แค่ไหน <span class="sym">α</span></label>
+            <output id="oAlpha">1.0</output>
+          </div>
+          <input type="range" id="sAlpha" min="0" max="4" step="0.1" value="1">
+          <span class="hint">0 = ไม่เรียนรู้เลย · สูงไป = ลู่เข้าเร็วเกินจนติดกับดัก</span>
+        </div>
+        <div class="slider">
+          <div class="top">
+            <label for="sRho">กลิ่นจางเร็วแค่ไหน <span class="sym">ρ</span></label>
+            <output id="oRho">0.10</output>
+          </div>
+          <input type="range" id="sRho" min="0.01" max="0.8" step="0.01" value="0.1">
+          <span class="hint">คือ "การลืม" ของฝูง ยิ่งสูงยิ่งกล้าลองของใหม่</span>
+        </div>
+        <div class="slider">
+          <div class="top"><label for="sAnts">จำนวนมดต่อรอบ</label><output id="oAnts">20</output></div>
+          <input type="range" id="sAnts" min="4" max="60" step="1" value="20">
+          <span class="hint">น้อยไป = สำรวจได้แคบ · มากไป = ช้าโดยไม่ได้ดีขึ้น</span>
+        </div>
+        <div class="slider">
+          <div class="top"><label for="sElite">เติมกลิ่นพิเศษให้เส้นทางที่ดีที่สุด</label><output id="oElite">2.0×</output></div>
+          <input type="range" id="sElite" min="0" max="5" step="0.5" value="2">
+        </div>
+        <div class="toggles" style="margin-top:11px">
+          <label class="toggle" for="cMmas">
+            <input type="checkbox" id="cMmas"> จำกัดความหนาของกลิ่น
+            <span style="color:var(--muted)">(Max-Min · วัดแล้วแย่ลง)</span>
+          </label>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>แสดงอะไรบนแผนที่</summary>
+      <div class="group">
+        <div class="toggles">
+          <label class="toggle" for="cPher"><input type="checkbox" id="cPher" checked> กลิ่น (ฟีโรโมน)</label>
+          <label class="toggle" for="cBest"><input type="checkbox" id="cBest" checked> เส้นทางที่ดีที่สุด</label>
+          <label class="toggle" for="cAnts"><input type="checkbox" id="cAnts"> เส้นทางเดินของมดทุกตัว</label>
+          <label class="toggle" for="cNums"><input type="checkbox" id="cNums"> เลขกำกับจุดหยิบ</label>
+        </div>
+        <p class="note" style="margin-top:11px">
+          เปิด <b>เส้นทางเดินของมดทุกตัว</b> จะเห็นว่ามดกระจายกันแค่ไหน
+          แต่ภาพจะรกขึ้นมาก
+        </p>
+      </div>
+    </details>
+
+  </aside>
+</div>
+
+<footer>
+  <span>โจทย์: เริ่มที่ <code>(0,0)</code> → หยิบให้ครบ → จบที่ <code>(17,19)</code> เดินได้ 4 ทิศ</span>
+  <span>ระยะทางระหว่างจุดคำนวณจาก <b>BFS จริงในเขาวงกต</b> ไม่ใช่ระยะเส้นตรง</span>
+  <span>ช่องยืนหยิบของแต่ละจุดเลือกด้วย DP · หน้านี้เป็น ACO ล้วน ไม่มี local search</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================ ข้อมูลโจทย์ ============================ */
+const GRID=[[0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,1,1,1,0,1,0,0,1,0,1,0,1,0,0,0,0,0,0]];
+const ROWS=GRID.length, COLS=GRID[0].length;
+const ENT=[0,0], EXT=[17,19];
+
+/* ชุดจุดหยิบเดียวกับในรายงาน (generate_pickup_points seed=20) */
+const PRESETS={
+ 10:[[17,6],[5,1],[4,17],[0,12],[13,17],[7,8],[8,17],[17,11],[13,4],[7,14]],
+ 20:[[17,3],[4,11],[10,11],[6,17],[5,17],[6,14],[0,11],[14,4],[0,10],[13,17],[14,17],[4,8],[11,14],[11,8],[14,11],[7,17],[12,8],[8,1],[0,4],[0,7]],
+ 30:[[14,1],[0,8],[13,11],[4,1],[6,1],[12,4],[13,1],[6,4],[0,7],[0,4],[6,17],[0,9],[8,14],[13,8],[5,11],[9,4],[5,8],[14,8],[12,11],[10,17],[4,4],[9,11],[7,4],[0,6],[10,4],[4,8],[9,17],[11,1],[5,1],[13,4]],
+ 50:[[8,17],[17,13],[14,1],[11,1],[11,14],[9,17],[5,11],[10,11],[13,1],[0,5],[17,9],[0,6],[0,13],[9,1],[0,3],[0,12],[12,14],[13,11],[11,4],[17,3],[12,1],[0,2],[10,14],[7,4],[7,17],[9,14],[0,16],[10,17],[11,17],[14,11],[14,14],[7,8],[6,17],[5,1],[4,14],[9,4],[10,4],[10,8],[7,11],[4,4],[4,11],[0,7],[0,9],[7,14],[10,1],[8,14],[11,8],[5,14],[8,11],[5,8]]
+};
+
+const DIRS=[[-1,0],[1,0],[0,-1],[0,1]];
+const id=(r,c)=>r*COLS+c;
+const walkable=(r,c)=>r>=0&&r<ROWS&&c>=0&&c<COLS&&GRID[r][c]===0;
+
+/* BFS จากช่องหนึ่ง -> ระยะทางและ parent ของทุกช่องเดินได้ */
+function bfs(sr,sc){
+  const N=ROWS*COLS;
+  const dist=new Int16Array(N).fill(-1);
+  const par=new Int16Array(N).fill(-1);
+  const q=new Int16Array(N); let head=0,tail=0;
+  dist[id(sr,sc)]=0; q[tail++]=id(sr,sc);
+  while(head<tail){
+    const cur=q[head++], r=(cur/COLS)|0, c=cur%COLS;
+    for(const [dr,dc] of DIRS){
+      const nr=r+dr, nc=c+dc;
+      if(!walkable(nr,nc)) continue;
+      const ni=id(nr,nc);
+      if(dist[ni]!==-1) continue;
+      dist[ni]=dist[cur]+1; par[ni]=cur; q[tail++]=ni;
+    }
+  }
+  return {dist,par};
+}
+
+/* ====================== แบบจำลองปัญหา (GTSP-Path) ====================== */
+function buildProblem(pickups){
+  const n=pickups.length;
+  const access=pickups.map(([r,c])=>{
+    const out=[];
+    for(const [dr,dc] of DIRS) if(walkable(r+dr,c+dc)) out.push([r+dr,c+dc]);
+    return out;
+  });
+
+  const cells=[ENT,EXT]; const nodeOf=new Map();
+  nodeOf.set(id(...ENT),0); nodeOf.set(id(...EXT),1);
+  const groups=access.map(list=>list.map(cell=>{
+    const key=id(...cell);
+    if(!nodeOf.has(key)){ nodeOf.set(key,cells.length); cells.push(cell); }
+    return nodeOf.get(key);
+  }));
+
+  const m=cells.length;
+  const fields=cells.map(([r,c])=>bfs(r,c));
+  const dist=[];
+  for(let i=0;i<m;i++){
+    const row=new Int32Array(m), f=fields[i].dist;
+    for(let j=0;j<m;j++){ const d=f[id(...cells[j])]; row[j]= d<0 ? 1e9 : d; }
+    dist.push(row);
+  }
+
+  const k=n+2;
+  const nodesOf=i=> i===0 ? [0] : i===k-1 ? [1] : groups[i-1];
+  const groupDist=[];
+  for(let a=0;a<k;a++){
+    const row=new Float64Array(k);
+    for(let b=0;b<k;b++){
+      if(a===b) continue;
+      let best=Infinity;
+      for(const u of nodesOf(a)) for(const v of nodesOf(b)) if(dist[u][v]<best) best=dist[u][v];
+      row[b]=best;
+    }
+    groupDist.push(row);
+  }
+  return {n,k,pickups,groups,cells,dist,fields,groupDist,nodesOf};
+}
+
+/* ลำดับการหยิบ -> ระยะทางที่ดีที่สุดของลำดับนั้น (DP บน access cells) */
+function evaluate(P,order){
+  let prevNodes=[0], prevCost=[0];
+  const back=[];
+  for(const p of order){
+    const cur=P.groups[p], cost=[], bk=[];
+    for(const v of cur){
+      let best=Infinity, arg=0;
+      for(let t=0;t<prevNodes.length;t++){
+        const val=prevCost[t]+P.dist[prevNodes[t]][v];
+        if(val<best){ best=val; arg=t; }
+      }
+      cost.push(best); bk.push(arg);
+    }
+    prevNodes=cur; prevCost=cost; back.push(bk);
+  }
+  let best=Infinity, arg=0;
+  for(let t=0;t<prevNodes.length;t++){
+    const val=prevCost[t]+P.dist[prevNodes[t]][1];
+    if(val<best){ best=val; arg=t; }
+  }
+  return {cost:best,back,arg};
+}
+
+/* ย้อนรอยเป็นทางเดินจริงทีละช่อง */
+function cellPath(P,a,b){
+  const par=P.fields[a].par;
+  let cur=id(...P.cells[b]);
+  const target=id(...P.cells[a]);
+  const out=[];
+  let guard=0;
+  while(cur!==target && cur!==-1 && guard++<4000){ out.push(cur); cur=par[cur]; }
+  out.push(target); out.reverse();
+  return out.map(v=>[(v/COLS)|0, v%COLS]);
+}
+function buildRoute(P,order){
+  const {cost,back,arg}=evaluate(P,order);
+  if(!isFinite(cost)) return null;
+  let idx=arg; const stops=[];
+  for(let t=order.length-1;t>=0;t--){ stops.push(P.groups[order[t]][idx]); idx=back[t][idx]; }
+  stops.reverse();
+  const seq=[0,...stops,1];
+  let path=[P.cells[0]];
+  for(let i=0;i<seq.length-1;i++) path=path.concat(cellPath(P,seq[i],seq[i+1]).slice(1));
+  return {cost,path,stops:stops.map(v=>P.cells[v])};
+}
+
+/* ============================= ACO ============================= */
+const S={
+  P:null, tau:null, eta:null,
+  iter:0, best:null, bestHist:[],
+  lastOrders:[], lastCosts:[], lastPaths:null,
+  playing:false, n:20
+};
+
+function resetColony(){
+  const k=S.P.k;
+  S.tau=[]; S.eta=[];
+  for(let i=0;i<k;i++){
+    S.tau.push(new Float64Array(k).fill(1));
+    const e=new Float64Array(k);
+    for(let j=0;j<k;j++){
+      const d=S.P.groupDist[i][j];
+      e[j]=(i===j||!isFinite(d)||d===0)?0:1/d;
+    }
+    S.eta.push(e);
+  }
+  S.iter=0; S.best=null; S.bestHist=[];
+  S.lastOrders=[]; S.lastCosts=[]; S.lastPaths=null; S.bestRoute=null;
+}
+
+function setProblem(n){
+  S.n=n;
+  S.P=buildProblem(PRESETS[n]);
+  resetColony();
+}
+
+function iterate(){
+  const P=S.P, k=P.k, n=P.n;
+  const alpha=+els.sAlpha.value, beta=+els.sBeta.value;
+  const rho=+els.sRho.value, elite=+els.sElite.value;
+  const ants=+els.sAnts.value, Q=100;
+
+  const orders=[], costs=[];
+  const pool=new Int32Array(n);
+  const w=new Float64Array(n);
+
+  for(let a=0;a<ants;a++){
+    let left=n;
+    for(let i=0;i<n;i++) pool[i]=i+1;      // node index 1..n
+    let cur=0; const order=[];
+    while(left>0){
+      let total=0;
+      for(let i=0;i<left;i++){
+        const j=pool[i];
+        const e=S.eta[cur][j];
+        w[i]= e>0 ? Math.pow(S.tau[cur][j],alpha)*Math.pow(e,beta) : 0;
+        total+=w[i];
+      }
+      let pick=0;
+      if(total>0){
+        let x=Math.random()*total;
+        while(pick<left-1 && (x-=w[pick])>0) pick++;
+      }else{
+        pick=(Math.random()*left)|0;
+      }
+      const chosen=pool[pick];
+      order.push(chosen-1);
+      pool[pick]=pool[left-1]; left--;
+      cur=chosen;
+    }
+    const c=evaluate(P,order).cost;
+    orders.push(order); costs.push(c);
+    if(!S.best || c<S.best.cost) S.best={order:order.slice(),cost:c};
+  }
+
+  /* ระเหย */
+  for(let i=0;i<k;i++){ const row=S.tau[i]; for(let j=0;j<k;j++) row[j]*=(1-rho); }
+  /* โรยจากมดทุกตัว */
+  for(let a=0;a<orders.length;a++){
+    const add=Q/costs[a], o=orders[a];
+    let prev=0;
+    for(let t=0;t<o.length;t++){ const nd=o[t]+1; S.tau[prev][nd]+=add; S.tau[nd][prev]+=add; prev=nd; }
+    S.tau[prev][k-1]+=add; S.tau[k-1][prev]+=add;
+  }
+  /* elitist ant */
+  if(elite>0 && S.best){
+    const add=elite*Q/S.best.cost, o=S.best.order;
+    let prev=0;
+    for(let t=0;t<o.length;t++){ const nd=o[t]+1; S.tau[prev][nd]+=add; S.tau[nd][prev]+=add; prev=nd; }
+    S.tau[prev][k-1]+=add; S.tau[k-1][prev]+=add;
+  }
+  /* Max-Min clamp (ปิดไว้เป็นค่าเริ่มต้น) */
+  if(els.cMmas.checked){
+    for(let i=0;i<k;i++){ const row=S.tau[i];
+      for(let j=0;j<k;j++){ if(row[j]>5) row[j]=5; else if(row[j]<0.05) row[j]=0.05; } }
+  }
+
+  S.iter++;
+  S.lastOrders=orders; S.lastCosts=costs; S.lastPaths=null;
+  S.bestHist.push(S.best.cost);
+  if(S.bestHist.length>600) S.bestHist.shift();
+}
+
+/* ============================ การวาดภาพ ============================ */
+const stage=document.getElementById("stage");
+const ctx=stage.getContext("2d");
+const spark=document.getElementById("spark");
+const sctx=spark.getContext("2d");
+let TH={};
+
+function readTheme(){
+  const cs=getComputedStyle(document.documentElement);
+  const g=k=>cs.getPropertyValue(k).trim();
+  TH={shelf:g("--shelf"),walk:g("--walk"),line:g("--line"),pher:g("--pher"),
+      pherHi:g("--pher-hi"),pick:g("--pick"),ink:g("--ink"),muted:g("--muted"),
+      inC:g("--in"),outC:g("--out"),ant:g("--ant"),surface:g("--surface")};
+}
+
+function fitCanvas(){
+  const wrap=stage.parentElement;
+  const cssW=Math.max(280,wrap.clientWidth);
+  const cssH=Math.round(cssW*ROWS/COLS);
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  stage.style.height=cssH+"px";
+  stage.width=Math.round(cssW*dpr); stage.height=Math.round(cssH*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const sw=Math.max(200,spark.parentElement.clientWidth);
+  spark.width=Math.round(sw*dpr); spark.height=Math.round(64*dpr);
+  sctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function draw(){
+  const w=stage.clientWidth, h=stage.clientHeight;
+  const cw=w/COLS, ch=h/ROWS;
+  const X=c=>(c+0.5)*cw, Y=r=>(r+0.5)*ch;
+
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle=TH.walk; ctx.fillRect(0,0,w,h);
+
+  /* ชั้นวาง */
+  ctx.fillStyle=TH.shelf;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++)
+    if(GRID[r][c]===1) ctx.fillRect(c*cw+.5,r*ch+.5,cw-1,ch-1);
+
+  /* เส้นตาราง */
+  ctx.strokeStyle=TH.line; ctx.globalAlpha=.35; ctx.lineWidth=1;
+  ctx.beginPath();
+  for(let c=1;c<COLS;c++){ ctx.moveTo(c*cw,0); ctx.lineTo(c*cw,h); }
+  for(let r=1;r<ROWS;r++){ ctx.moveTo(0,r*ch); ctx.lineTo(w,r*ch); }
+  ctx.stroke(); ctx.globalAlpha=1;
+
+  const P=S.P, k=P.k;
+  const disp=[ENT,...P.pickups,EXT];
+
+  /* --- เส้นทางเดินจริงของมดรอบนี้ --- */
+  if(els.cAnts.checked && S.lastOrders.length){
+    if(!S.lastPaths){
+      const cap=Math.min(S.lastOrders.length,26);
+      S.lastPaths=[];
+      for(let i=0;i<cap;i++){
+        const r=buildRoute(P,S.lastOrders[i]);
+        if(r) S.lastPaths.push(r.path);
+      }
+    }
+    ctx.strokeStyle=TH.ant; ctx.lineWidth=Math.max(1.1,cw*0.10);
+    ctx.lineJoin="round"; ctx.lineCap="round";
+    ctx.globalAlpha=Math.min(.34, 2.2/Math.max(1,S.lastPaths.length));
+    S.lastPaths.forEach((path,i)=>{
+      const jx=((i*37%13)/13-0.5)*cw*0.30, jy=((i*53%11)/11-0.5)*ch*0.30;
+      ctx.beginPath();
+      for(let t=0;t<path.length;t++){
+        const x=X(path[t][1])+jx, y=Y(path[t][0])+jy;
+        t? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+      }
+      ctx.stroke();
+    });
+    ctx.globalAlpha=1;
+  }
+
+  /* --- กราฟฟีโรโมน --- */
+  if(els.cPher.checked){
+    let tmax=0;
+    for(let a=0;a<k;a++) for(let b=a+1;b<k;b++) if(S.tau[a][b]>tmax) tmax=S.tau[a][b];
+    if(tmax>0){
+      ctx.lineCap="round";
+      for(let a=0;a<k;a++) for(let b=a+1;b<k;b++){
+        const s=S.tau[a][b]/tmax;
+        if(s<0.10) continue;
+        const p=Math.pow(s,3);
+        ctx.strokeStyle= s>0.62 ? TH.pher : TH.pherHi;
+        ctx.globalAlpha=0.07+0.80*p;
+        ctx.lineWidth=Math.max(0.6, cw*0.10 + cw*0.55*p);
+        ctx.beginPath();
+        ctx.moveTo(X(disp[a][1]),Y(disp[a][0]));
+        ctx.lineTo(X(disp[b][1]),Y(disp[b][0]));
+        ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+    }
+  }
+
+  /* --- เส้นทางที่ดีที่สุด (cache ไว้ ไม่ต้องคำนวณใหม่ทุกเฟรม) --- */
+  if(els.cBest.checked && S.best){
+    if(!S.bestRoute || S.bestRoute.key!==S.best.order.join(",")){
+      const built=buildRoute(P,S.best.order);
+      S.bestRoute=built?{key:S.best.order.join(","),path:built.path}:null;
+    }
+    const r=S.bestRoute;
+    if(r){
+      ctx.strokeStyle=TH.ink; ctx.globalAlpha=.85;
+      ctx.lineWidth=Math.max(1.6,cw*0.16); ctx.lineJoin="round"; ctx.lineCap="round";
+      ctx.beginPath();
+      r.path.forEach((cell,t)=>{ const x=X(cell[1]),y=Y(cell[0]); t?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      ctx.stroke(); ctx.globalAlpha=1;
+    }
+  }
+
+  /* --- จุดหยิบ / ทางเข้า / ทางออก --- */
+  const ps=Math.min(cw,ch)*0.66;
+  ctx.lineWidth=1.1; ctx.strokeStyle="rgba(0,0,0,.45)";
+  P.pickups.forEach((p,i)=>{
+    ctx.fillStyle=TH.pick;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(X(p[1])-ps/2, Y(p[0])-ps/2, ps, ps, Math.max(1.5,ps*0.18));
+    else ctx.rect(X(p[1])-ps/2, Y(p[0])-ps/2, ps, ps);
+    ctx.fill(); ctx.stroke();
+    if(els.cNums.checked && ps>11){
+      ctx.fillStyle="#1b1608";
+      ctx.font=`600 ${Math.max(7,ps*0.56)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(String(i+1), X(p[1]), Y(p[0])+0.5);
+    }
+  });
+  const dot=(cell,color,label)=>{
+    const rr=Math.min(cw,ch)*0.46;
+    ctx.beginPath(); ctx.arc(X(cell[1]),Y(cell[0]),rr,0,Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,.5)"; ctx.lineWidth=1.2; ctx.stroke();
+    if(rr>8){
+      ctx.fillStyle="#fff";
+      ctx.font=`700 ${Math.max(7,rr*0.78)}px "Chakra Petch", sans-serif`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(label,X(cell[1]),Y(cell[0])+0.5);
+    }
+  };
+  dot(ENT,TH.inC,"IN"); dot(EXT,TH.outC,"OUT");
+}
+
+function drawSpark(){
+  const w=spark.clientWidth, h=64;
+  sctx.clearRect(0,0,w,h);
+  const hist=S.bestHist;
+  if(hist.length<2){
+    sctx.fillStyle=TH.muted;
+    sctx.font='400 12px "IBM Plex Sans Thai", sans-serif';
+    sctx.textAlign="center"; sctx.textBaseline="middle";
+    sctx.fillText("กด ▶ เล่น เพื่อเริ่มปล่อยมด", w/2, h/2);
+    return;
+  }
+  const lo=Math.min(...hist), hi=Math.max(...hist), pad=8;
+  const span=Math.max(1,hi-lo);
+  const px=i=>pad+(w-2*pad)*(i/(hist.length-1));
+  const py=v=>h-pad-(h-2*pad)*((v-lo)/span);
+
+  sctx.strokeStyle=TH.line; sctx.lineWidth=1; sctx.globalAlpha=.7;
+  sctx.beginPath(); sctx.moveTo(pad,py(lo)); sctx.lineTo(w-pad,py(lo)); sctx.stroke();
+  sctx.globalAlpha=1;
+
+  sctx.beginPath();
+  hist.forEach((v,i)=>{ i?sctx.lineTo(px(i),py(v)):sctx.moveTo(px(i),py(v)); });
+  sctx.lineTo(px(hist.length-1),h-pad); sctx.lineTo(px(0),h-pad); sctx.closePath();
+  sctx.fillStyle=TH.pher; sctx.globalAlpha=.14; sctx.fill(); sctx.globalAlpha=1;
+
+  sctx.beginPath();
+  hist.forEach((v,i)=>{ i?sctx.lineTo(px(i),py(v)):sctx.moveTo(px(i),py(v)); });
+  sctx.strokeStyle=TH.pher; sctx.lineWidth=2; sctx.lineJoin="round"; sctx.stroke();
+
+  sctx.beginPath();
+  sctx.arc(px(hist.length-1),py(hist[hist.length-1]),3.2,0,Math.PI*2);
+  sctx.fillStyle=TH.pher; sctx.fill();
+
+  sctx.fillStyle=TH.muted;
+  sctx.font='500 10px "IBM Plex Mono", monospace';
+  sctx.textAlign="left"; sctx.textBaseline="top";
+  sctx.fillText(String(hi), pad, 3);
+  sctx.textBaseline="bottom";
+  sctx.fillText(String(lo), pad, h-2);
+}
+
+/* ============================ ตัวเลขสรุป ============================ */
+function updateStats(){
+  const q=x=>document.getElementById(x);
+  q("mIter").textContent=S.iter;
+  q("mBest").textContent=S.best?S.best.cost:"–";
+  q("mAvg").textContent=S.lastCosts.length
+    ? Math.round(S.lastCosts.reduce((a,b)=>a+b,0)/S.lastCosts.length) : "–";
+
+  if(S.tau){
+    const k=S.P.k, vals=[];
+    for(let a=0;a<k;a++) for(let b=a+1;b<k;b++) vals.push(S.tau[a][b]);
+    vals.sort((x,y)=>y-x);
+    const total=vals.reduce((a,b)=>a+b,0);
+    const top=vals.slice(0,k-1).reduce((a,b)=>a+b,0);
+    q("mFocus").textContent= total>0 ? Math.round(top/total*100) : "–";
+  }
+
+  if(S.lastOrders.length){
+    const set=new Set();
+    for(const o of S.lastOrders){
+      const seq=[-1,...o,-2];
+      for(let i=0;i<seq.length-1;i++){
+        const a=Math.min(seq[i],seq[i+1]), b=Math.max(seq[i],seq[i+1]);
+        set.add(a+","+b);
+      }
+    }
+    q("mLinks").textContent=set.size;
+  }else q("mLinks").textContent="–";
+}
+
+/* ============================ ตัวควบคุม ============================ */
+const els={};
+["sAnts","sSpeed","sAlpha","sBeta","sRho","sElite",
+ "cMmas","cPher","cAnts","cBest","cNums"].forEach(k=>els[k]=document.getElementById(k));
+
+const fmt={
+  sAnts:v=>v,
+  sSpeed:v=>v+" รอบ/วิ",
+  sAlpha:v=>(+v).toFixed(1),
+  sBeta:v=>(+v).toFixed(1),
+  sRho:v=>(+v).toFixed(2),
+  sElite:v=>(+v).toFixed(1)+"×"
+};
+function syncOutputs(){
+  for(const k in fmt){
+    const o=document.getElementById("o"+k.slice(1));
+    if(o) o.textContent=fmt[k](els[k].value);
+  }
+}
+for(const k in fmt) els[k].addEventListener("input",()=>{ syncOutputs(); clearPreset(); });
+["cPher","cAnts","cBest","cNums"].forEach(k=>els[k].addEventListener("change",render));
+
+/* presets */
+const PRESET_CFG={
+  report:{a:1,b:3,r:.1,e:2,note:"<b>ค่าที่ใช้จริง</b> — สังเกตว่าเส้นแดงค่อย ๆ รวมกันเป็นเส้นทางเดียวภายในไม่กี่สิบรอบ"},
+  nobeta:{a:1,b:0,r:.1,e:2,note:"<b>มดตาบอด</b> — ไม่สนว่าจุดไหนใกล้ ดูสิว่าเส้นแดงมั่วไปหมดและตัวเลข 'สั้นที่สุด' แย่ลงชัดเจน (ทดลองจริงที่ 30 จุด ได้ 148 ก้าว เทียบกับ 82)"},
+  noalpha:{a:0,b:3,r:.1,e:2,note:"<b>ไม่เรียนรู้</b> — ปิดการใช้กลิ่น เหลือแค่สุ่มแบบโลภ เส้นแดงจะไม่ก่อตัวเป็นเส้นทางเลย"},
+  greedy:{a:4,b:3,r:.1,e:2,note:"<b>เชื่อกลิ่นเกินไป</b> — ฝูงรีบสรุปตั้งแต่รอบแรก ๆ แล้วไม่ยอมเปลี่ยน เส้นแดงนิ่งเร็วแต่คำตอบแย่กว่า"}
+};
+function clearPreset(){
+  document.querySelectorAll("#presetChips .chip").forEach(c=>c.setAttribute("aria-pressed","false"));
+}
+document.querySelectorAll("#presetChips .chip").forEach(chip=>{
+  chip.addEventListener("click",()=>{
+    const cfg=PRESET_CFG[chip.dataset.preset];
+    els.sAlpha.value=cfg.a; els.sBeta.value=cfg.b;
+    els.sRho.value=cfg.r; els.sElite.value=cfg.e;
+    syncOutputs(); clearPreset(); chip.setAttribute("aria-pressed","true");
+    document.getElementById("presetNote").innerHTML=cfg.note;
+    resetColony(); render();
+  });
+});
+
+document.querySelectorAll("#sizeChips .chip").forEach(chip=>{
+  chip.addEventListener("click",()=>{
+    document.querySelectorAll("#sizeChips .chip").forEach(c=>c.setAttribute("aria-pressed","false"));
+    chip.setAttribute("aria-pressed","true");
+    setProblem(+chip.dataset.n);
+    warmUp(3); render();
+  });
+});
+
+const playBtn=document.getElementById("playBtn");
+playBtn.addEventListener("click",()=>{ S.playing=!S.playing; refreshPlay(); });
+function refreshPlay(){ playBtn.textContent=S.playing?"⏸ หยุด":"▶ เล่น"; }
+document.getElementById("stepBtn").addEventListener("click",()=>{
+  S.playing=false; refreshPlay(); iterate(); render();
+});
+document.getElementById("resetBtn").addEventListener("click",()=>{
+  resetColony(); render();
+});
+document.getElementById("themeBtn").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const sysDark=window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const next=cur ? (cur==="dark"?"light":"dark") : (sysDark?"light":"dark");
+  document.documentElement.setAttribute("data-theme",next);
+  readTheme(); render();
+});
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{ readTheme(); render(); });
+
+/* ============================ วงรอบหลัก ============================ */
+function updateViewHint(){
+  const on=[];
+  if(els.cPher.checked) on.push("<b>เส้นแดง = กลิ่น</b> ยิ่งหนายิ่งมีมดเห็นตรงกันว่าสองจุดนี้ควรหยิบติดกัน");
+  if(els.cBest.checked) on.push("<b>เส้นทึบเข้ม</b> คือเส้นทางที่ดีที่สุดที่เจอมาจนถึงตอนนี้");
+  if(els.cAnts.checked) on.push("<b>เส้นฟ้าจาง</b> คือทางที่มดแต่ละตัวเดินจริงในรอบนี้");
+  document.getElementById("viewHint").innerHTML =
+    on.length ? on.join(" · ") : "ยังไม่ได้เปิดอะไรให้แสดงเลย — เปิดได้ที่ \"แสดงอะไรบนแผนที่\"";
+}
+
+function render(){ draw(); drawSpark(); updateStats(); updateViewHint(); }
+
+let acc=0, last=performance.now();
+function loop(now){
+  const dt=(now-last)/1000; last=now;
+  if(S.playing){
+    acc+=dt*(+els.sSpeed.value);
+    let guard=0;
+    while(acc>=1 && guard++<6){ iterate(); acc-=1; }
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+
+function warmUp(steps){ for(let i=0;i<steps;i++) iterate(); }
+
+/* ============================ เริ่มต้น ============================ */
+readTheme();
+setProblem(20);
+fitCanvas();
+warmUp(4);                       /* ให้หน้าเปิดมาแล้วเห็นฟีโรโมนเริ่มก่อตัวแล้ว */
+syncOutputs();
+render();
+
+const ro=new ResizeObserver(()=>{ fitCanvas(); render(); });
+ro.observe(stage.parentElement);
+
+S.playing=!window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+refreshPlay();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
