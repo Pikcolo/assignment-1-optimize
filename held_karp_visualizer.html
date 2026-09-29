@@ -104,6 +104,27 @@ tr.layer td{background:var(--sunk);font-family:var(--body);font-size:12px;color:
 .srtbot{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
 .srtbot div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px}
 .srtbot b{font-family:var(--mono);color:var(--teal);display:block;font-size:12px;letter-spacing:.05em}
+.pc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.pc{grid-template-columns:minmax(0,1fr)}}
+.pc .card.pro{border-top:4px solid var(--teal)}
+.pc .card.con{border-top:4px solid var(--exit)}
+.pc ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+.pc li b{font-weight:600}
+.pro h3{color:var(--teal)} .con h3{color:var(--exit)}
+.verdict{font-family:var(--mono);font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;align-self:flex-start}
+.verdict.ok{background:var(--teal-soft);color:var(--teal)}
+.verdict.slow{background:var(--amber-soft);color:#7A5500}
+.verdict.no{background:#F7DCD6;color:var(--exit)}
+.scale{display:flex;flex-direction:column;gap:8px;position:relative}
+.scale-row{display:grid;grid-template-columns:52px 1fr 92px;gap:10px;align-items:center;font-size:12.5px}
+.scale-row .track{position:relative;height:14px;background:var(--sunk);border-radius:4px}
+.scale-row .track > span{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--teal)}
+.scale-row.over .track > span{background:var(--exit)}
+.scale-row.cur .mono:first-child{color:var(--ink);font-weight:600}
+.scale-row .mono{font-family:var(--mono);color:var(--muted)}
+.scale-row .mono:last-child{text-align:right}
+.limit{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--ink)}
+.limit-cap{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
 svg text{font-family:"IBM Plex Mono","IBM Plex Sans Thai",ui-monospace,monospace}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -195,6 +216,63 @@ svg text{font-family:"IBM Plex Mono","IBM Plex Sans Thai",ui-monospace,monospace
           <p class="note" id="statnote"></p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ===================== บทที่ 3 ===================== -->
+  <section class="lesson" id="lesson3">
+    <div class="lesson-head">
+      <span class="eyebrow">บทที่ 3</span>
+      <h2>ข้อดี ข้อเสีย และถ้าเพิ่มเป็น N = 20, 30, 50</h2>
+      <p>Held–Karp ให้คำตอบที่ดีที่สุดเสมอ แต่ต้องจ่ายด้วยขนาดตารางที่โตเป็น 2ⁿ ส่วนนี้ดูว่าตารางโตแค่ไหน และหยุดใช้ได้ที่ n เท่าไร</p>
+    </div>
+    <div class="pc">
+      <div class="card pro">
+        <h3>ข้อดี</h3>
+        <ul>
+          <li><b>ได้คำตอบดีที่สุดแบบการันตี</b> ไม่ใช่แค่ "ดีพอ" ใช้เป็นคำเฉลยตรวจ GA / ACO ได้ (n = 20 ทำให้รู้ว่า ACO ได้ 82 ก้าวพอดีกับ optimum)</li>
+          <li><b>เร็วกว่า brute force มาก</b> 2ⁿ·n² แทน n! ที่ n = 10 มี 10,240 state เทียบกับ 3,628,800 ลำดับ</li>
+          <li><b>ไม่มีพารามิเตอร์ต้องจูน</b> และไม่สุ่ม รันกี่ครั้งก็ได้ผลเดิม</li>
+          <li><b>ขยาย state ได้ง่าย</b> เพิ่มช่องยืน c เข้าไปใน state ก็รองรับจุดหยิบที่ยืนได้หลายช่อง และการหยิบผ่านทางได้เอง</li>
+          <li><b>ย้อนเส้นทางได้</b> จากช่อง "มาจาก" โดยไม่ต้องคำนวณใหม่</li>
+        </ul>
+      </div>
+      <div class="card con">
+        <h3>ข้อเสีย</h3>
+        <ul>
+          <li><b>เวลาโตแบบ exponential</b> O(2ⁿ · n² · A²) เพิ่ม 1 จุด เวลาเพิ่มเกิน 2 เท่า</li>
+          <li><b>หน่วยความจำหมดก่อนเวลา</b> ต้องเก็บตารางทั้งหมด O(2ⁿ · n · A) ไว้ย้อนเส้นทาง</li>
+          <li><b>ต้องคำนวณครบทุก state</b> ก่อนจะได้คำตอบ ไม่มีคำตอบระหว่างทาง หยุดกลางคันก็ไม่ได้อะไร</li>
+          <li><b>ต้องมีตารางระยะทุกคู่</b> ต้อง BFS จากทุกช่องยืนก่อน</li>
+          <li><b>เพิ่มเงื่อนไขยาก</b> เช่นความจุรถเข็น หรือน้ำหนักของ ต้องเพิ่มมิติใน state ตารางยิ่งใหญ่ขึ้น</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>เลือกจำนวนจุดหยิบ n</h3>
+      <div class="chips" id="nchips"></div>
+      <div class="stats" id="nstats"></div>
+      <span class="verdict" id="nverdict"></span>
+      <p id="ntext" style="max-width:75ch"></p>
+    </div>
+
+    <div class="card">
+      <h3>ขนาดตาราง DP (สเกล log)</h3>
+      <p class="note">คิดจาก 2ⁿ × m × 4 ไบต์ โดย m ≈ 2n คือจำนวนช่องยืนรวม · เส้นประ = RAM โน้ตบุ๊ก 16 GB · แต่ละช่องบนแกนคือ ×1,000</p>
+      <div class="scale" id="nscale"></div>
+    </div>
+
+    <div class="card">
+      <h3>ผลจริงเทียบกับ GA และ ACO</h3>
+      <p class="note">จากการทดลองในรายงาน (GA / ACO รัน 3 seed ค่าดีสุด / เฉลี่ย) จุดหยิบแต่ละ n สุ่มใหม่ จึงเทียบกันในแถวเดียวกันเท่านั้น</p>
+      <div class="tablewrap"><table>
+        <tr><th>n</th><th>Held–Karp</th><th>GA</th><th>ACO</th></tr>
+        <tr><td>10</td><td><b>72</b> (0.02 s)</td><td>72 / 72.0 (0.33 s)</td><td>72 / 72.0 (0.09 s)</td></tr>
+        <tr><td>20</td><td><b>82</b> (65 s, RAM 160 MB)</td><td>86 / 87.3 (0.72 s)</td><td><b>82</b> / 83.3 (0.29 s)</td></tr>
+        <tr><td>30</td><td>ใช้ไม่ได้ (RAM 240 GB)</td><td>82 / 83.3 (2.37 s)</td><td><b>82</b> / 82.0 (0.79 s)</td></tr>
+        <tr><td>50</td><td>ใช้ไม่ได้ (RAM 396 PB)</td><td>108 / 108.7 (10.45 s)</td><td><b>96</b> / 100.0 (4.97 s)</td></tr>
+      </table></div>
     </div>
   </section>
 
@@ -606,6 +684,46 @@ function refresh(){sel.sort((a,b)=>a-b);build();renderChips();stats();s2.reset()
 sel.sort((a,b)=>a-b);build();
 s2=makeStepper(document.getElementById("c2"),()=>steps2.length,render2,()=>steps2.length>60?250:1300);
 renderChips();stats();s2.go(0);
+
+/* =========================================================
+   บทที่ 3 : ถ้า n ใหญ่ขึ้น
+   ========================================================= */
+const cellsOf=n=>n===10?22:n===20?40:2*n;           // n = 10, 20 ใช้ค่าจริงจากโกดัง ที่เหลือประมาณ m ≈ 2n
+const bytesOf=n=>Math.pow(2,n)*cellsOf(n)*4;         // ตาราง float32 เต็ม
+const RAM=16*Math.pow(1024,3);
+function fmtBytes(b){const u=["B","KB","MB","GB","TB","PB","EB"];let i=0;while(b>=1024&&i<u.length-1){b/=1024;i++;}return (b<10?b.toFixed(1):Math.round(b).toLocaleString())+" "+u[i];}
+function fmtBig(x){if(x<1e7)return Math.round(x).toLocaleString();const e=Math.floor(Math.log10(x));return (x/Math.pow(10,e)).toFixed(1)+" × 10"+String(e).split("").map(d=>"⁰¹²³⁴⁵⁶⁷⁸⁹"[d]).join("");}
+const factorial=n=>{let f=1;for(let i=2;i<=n;i++)f*=i;return f;};
+const SCEN={
+  10:{time:"0.02 s",timeK:"เวลา (วัดจริง)",v:"ok",vt:"ใช้ได้สบาย",
+      text:"ตารางเล็กมาก (ไม่ถึง 100 KB) คำนวณเสร็จในเสี้ยววินาที ได้ 72 ก้าวซึ่งเป็นคำตอบที่ดีที่สุดแน่นอน GA และ ACO ก็ได้ 72 เท่ากัน ขนาดนี้ใช้ Held–Karp ดีที่สุด เพราะได้การันตีโดยไม่ต้องรอ"},
+  20:{time:"65 s",timeK:"เวลา (วัดจริง, numpy)",v:"slow",vt:"ใช้ได้ แต่ช้า",
+      text:"n เพิ่ม 10 จุด ตารางใหญ่ขึ้น 2¹⁰ ≈ 1,000 เท่า และเวลาเพิ่มราว 3,000 เท่า (0.02 s → 65 s) เพราะจำนวนช่องยืน m ก็เพิ่มด้วย RAM 160 MB ยังรับไหว แต่ Python ล้วนไม่ทันแล้ว ต้องใช้ numpy ช่วย ผลที่ได้ (82 ก้าว) มีค่ามากในฐานะคำเฉลย ทำให้รู้ว่า ACO หา optimum ได้พอดี ส่วน GA ห่างไป 4.9%"},
+  30:{time:"≈ 1.7 วัน",timeK:"เวลา (ประมาณจาก n = 20)",v:"no",vt:"ใช้ไม่ได้ : RAM ไม่พอ",
+      text:"ตารางต้องใช้ราว 240 GB มากกว่า RAM โน้ตบุ๊ก 16 GB ประมาณ 15 เท่า โปรแกรมจะ MemoryError ก่อนที่เวลาจะเป็นปัญหาเสียอีก ถ้ามี RAM พอก็ยังต้องรอราว 1–2 วัน ทางออกคือโหมด beam (เก็บแค่ mask ที่ดีที่สุดบางส่วนต่อชั้น) ซึ่งเร็วแต่ไม่การันตี optimum อีกแล้ว หรือใช้ ACO ซึ่งได้ 82 ก้าวใน 0.8 s"},
+  50:{time:"≈ 14,000 ปี",timeK:"เวลา (ประมาณจาก n = 20)",v:"no",vt:"เป็นไปไม่ได้",
+      text:"ตารางต้องใช้ราว 396 PB (ประมาณ 26 ล้านเท่าของ RAM 16 GB) และต้องคำนวณเป็นหมื่นปี ไม่มีคอมพิวเตอร์เครื่องไหนทำได้ จึงไม่รู้ด้วยซ้ำว่าคำตอบที่ดีที่สุดจริงคือเท่าไร ต้องใช้ metaheuristic แทน ACO ได้ 96 ก้าวใน 5 s ส่วน GA ได้ 108 ก้าว"}
+};
+let curN=20;
+const nchips=document.getElementById("nchips");
+[10,20,30,50].forEach(n=>{const b=h("button","chip","n = "+n);b.id="nchip"+n;b.onclick=()=>{curN=n;renderN();};nchips.appendChild(b);});
+function renderN(){
+  const n=curN,s=SCEN[n],over=bytesOf(n)>RAM;
+  nchips.querySelectorAll(".chip").forEach(b=>b.setAttribute("aria-pressed",b.id==="nchip"+n?"true":"false"));
+  document.getElementById("nstats").innerHTML=`
+    <div class="stat"><span class="k">ช่องในตาราง 2ⁿ × m (m = ${cellsOf(n)})</span><span class="v">${fmtBig(Math.pow(2,n)*cellsOf(n))}</span></div>
+    <div class="stat ${over?"bad":"good"}"><span class="k">RAM ของตาราง</span><span class="v">${fmtBytes(bytesOf(n))}</span></div>
+    <div class="stat ${s.v==="ok"?"good":s.v==="no"?"bad":""}"><span class="k">${s.timeK}</span><span class="v">${s.time}</span></div>
+    <div class="stat"><span class="k">brute force n! ลำดับ</span><span class="v">${fmtBig(factorial(n))}</span></div>`;
+  const v=document.getElementById("nverdict");v.className="verdict "+s.v;v.textContent=s.vt;
+  document.getElementById("ntext").textContent=s.text;
+  const box=document.getElementById("nscale"),lo=3,hi=18,pos=b=>Math.max(0,Math.min(100,(Math.log10(b)-lo)/(hi-lo)*100));
+  let html="";
+  for(const k of [10,15,20,25,30,40,50]){const b=bytesOf(k);
+    html+=`<div class="scale-row${b>RAM?" over":""}${k===n?" cur":""}"><span class="mono">n = ${k}</span><div class="track"><span style="width:${pos(b).toFixed(1)}%"></span><i class="limit" style="left:${pos(RAM).toFixed(1)}%"></i></div><span class="mono">${fmtBytes(b)}</span></div>`;}
+  box.innerHTML=html;
+}
+renderN();
 })();
 </script>
 </body>
